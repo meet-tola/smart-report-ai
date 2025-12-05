@@ -1,0 +1,91 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  authId    String   @unique
+  email     String   @unique
+  name      String?
+  avatar    String?
+  provider  String?
+  tokens    Int      @default(1000)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documents    Document[]
+  tokenHistory TokenTransaction[]
+
+  @@map("users")
+}
+
+model Document {
+  id            String @id @default(cuid())
+  userId        String
+  user          User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title         String @default("Untitled Document")
+  content       String @default("{}")
+  thumbnail     String?
+  fileUrl       String?
+  fileType      String? 
+
+  template      String?
+  aiPrompt      String?
+  docType       String @default("report")
+
+  status        String @default("pending") 
+  webSources    String?
+  includeImages Boolean @default(false)
+
+  version       Int    @default(1)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  versions      DocumentVersion[]
+
+  @@index([userId])
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  content String
+  version Int
+
+  createdAt DateTime @default(now())
+
+  @@index([documentId])
+  @@map("document_versions")
+}
+
+model TokenTransaction {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  amount Int
+  type   String // credit, debit
+  reason String // welcome_bonus, ai_generation, etc
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("token_transactions")
+}
