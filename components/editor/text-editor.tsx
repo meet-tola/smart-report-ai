@@ -3,7 +3,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import "./tiptap.css"
 import { cn } from "@/lib/utils"
 import { ImageExtension } from "@/components/editor/extensions/image"
@@ -15,7 +15,7 @@ import Link from "@tiptap/extension-link"
 import Subscript from "@tiptap/extension-subscript"
 import Superscript from "@tiptap/extension-superscript"
 import TextAlign from "@tiptap/extension-text-align"
-import { LineHeight, TextStyle } from "@tiptap/extension-text-style"
+import { FontSize, LineHeight, TextStyle } from "@tiptap/extension-text-style"
 import Typography from "@tiptap/extension-typography"
 import Underline from "@tiptap/extension-underline"
 import { EditorContent, Extension, useEditor } from "@tiptap/react"
@@ -93,6 +93,7 @@ const extensions = [
   }),
   TextStyle,
   LineHeight,
+  FontSize,
   FontFamily,
   Subscript,
   Superscript,
@@ -110,8 +111,9 @@ const extensions = [
 
 export function TextEditor({ className, initialContent, initialFont, onEditorReady, onContentChange }: TextEditorEnhancedProps) {
   const [showAskAI, setShowAskAI] = useState(false)
-  const [savedSelectedText, setSavedSelectedText] = useState("") // Renamed for clarity; now saved on open
+  const [savedSelectedText, setSavedSelectedText] = useState("")
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 })
+  const floatingButtonRef = useRef<HTMLButtonElement>(null)
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -182,16 +184,14 @@ export function TextEditor({ className, initialContent, initialFont, onEditorRea
     const { from, to } = editor.state.selection
     const text = editor.state.doc.textBetween(from, to, " ")
     setSavedSelectedText(text)
-    const selection = window.getSelection()
-    if (selection && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0)
-      const rect = range.getBoundingClientRect()
+    if (floatingButtonRef.current) {
+      const rect = floatingButtonRef.current.getBoundingClientRect()
       setPopupPosition({
         x: rect.left + window.scrollX,
         y: rect.bottom + window.scrollY + 10,
       })
-      setShowAskAI(true)
     }
+    setShowAskAI(true)
   }
 
   const handleClosePopup = () => {
@@ -215,6 +215,7 @@ export function TextEditor({ className, initialContent, initialFont, onEditorRea
           }}
         >
           <Button
+            ref={floatingButtonRef}
             size="sm"
             variant="default"
             className="h-8 gap-1.5 shadow-sm rounded-full px-3 text-xs"

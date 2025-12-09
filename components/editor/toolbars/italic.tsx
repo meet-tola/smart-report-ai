@@ -17,7 +17,7 @@ const ItalicToolbar = React.forwardRef<HTMLButtonElement, React.ComponentPropsWi
           <Button
             variant="ghost"
             size="icon"
-            className={cn("h-8 w-8 p-0 sm:h-9 sm:w-9", editor?.isActive("italic") && "bg-accent", className)}
+            className={cn("h-6 w-6 p-0 sm:h-7 sm:w-7 cursor-pointer", editor?.isActive("italic") && "bg-accent", className)}
             onClick={(e) => {
               editor?.chain().focus().toggleItalic().run()
               onClick?.(e)

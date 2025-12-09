@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { ChevronDown, AlignVerticalSpaceBetween } from "lucide-react"
+import { ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -10,7 +10,7 @@ import { useToolbar } from "./toolbar-provider"
 import { useMediaQuery } from "@/hooks/use-media-querry"
 import { MobileToolbarGroup, MobileToolbarItem } from "./mobile-toolbar-group"
 
-const lineHeights = ['1.15', '1.5', '1.75', '2.0'] as const
+const lineHeights = ['0.5', '1.15', '1.5', '1.75', '2.0'] as const
 
 export const LineHeightToolbar = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
   ({ className, ...props }, ref) => {
@@ -34,7 +34,7 @@ export const LineHeightToolbar = React.forwardRef<HTMLButtonElement, React.Butto
               {lineHeights.map((level) => (
                 <MobileToolbarItem
                   key={level}
-                  onClick={() => editor?.chain().focus().toggleTextStyle({ lineHeight: level }).run()}
+                  onClick={() => editor?.chain().focus().setLineHeight(level).run()}
                   active={editor?.isActive("textStyle", { lineHeight: level })}
                 >
                   {level}x
@@ -59,13 +59,13 @@ export const LineHeightToolbar = React.forwardRef<HTMLButtonElement, React.Butto
                 size="sm"
                 className={cn(
                   "h-8 w-max gap-1 px-3 font-normal",
-                  editor?.isActive("textStyle") && "bg-accent",
+                  !!activeLevel && "bg-accent",
                   className,
                 )}
                 ref={ref}
                 {...props}
               >
-                {activeLevel ? `${activeLevel}x` : <AlignVerticalSpaceBetween className="h-4 w-4" />}
+                {activeLevel ? `${activeLevel}x` : "LH"}
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -84,7 +84,7 @@ export const LineHeightToolbar = React.forwardRef<HTMLButtonElement, React.Butto
           {lineHeights.map((level) => (
             <DropdownMenuItem
               key={level}
-              onClick={() => editor?.chain().focus().toggleTextStyle({ lineHeight: level }).run()}
+              onClick={() => editor?.chain().focus().setLineHeight(level).run()}
               className={cn("flex items-center gap-2", editor?.isActive("textStyle", { lineHeight: level }) && "bg-accent")}
             >
               {level}x

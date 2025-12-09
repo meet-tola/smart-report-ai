@@ -12,8 +12,6 @@ const lineConfigs = [
   { baseWidths: ["w-full", "w-10/12", "w-11/12"] },
   { baseWidths: ["w-11/12", "w-9/12", "w-full"] },
   { baseWidths: ["w-10/12", "w-full", "w-9/12"] },
-  { baseWidths: ["w-full", "w-11/12", "w-10/12"] },
-  { baseWidths: ["w-9/12", "w-11/12", "w-full"] },
 ]
 
 export function AILoadingSkeleton({ messages = defaultMessages }: AILoadingSkeletonProps) {
@@ -47,10 +45,10 @@ export function AILoadingSkeleton({ messages = defaultMessages }: AILoadingSkele
   }
 
   return (
-    <div className="flex flex-col items-center justify-center gap-16">
-      <div className="flex flex-col gap-3 w-full max-w-md">
+    <div className="flex flex-col items-center justify-center">
+      <div className="flex flex-col gap-3 w-full max-w-2xl">
         <div className="space-y-4 p-6">
-          {[0, 1, 2, 3, 4].map(
+          {[0, 1, 2,].map(
             (lineIndex) =>
               visibleLines > lineIndex && (
                 <div
@@ -62,7 +60,7 @@ export function AILoadingSkeleton({ messages = defaultMessages }: AILoadingSkele
         </div>
       </div>
 
-      <div className="text-center space-y-2">
+      <div className="text-center space-y-2 mt-2">
         <p className="text-lg font-medium text-foreground h-8 flex items-center justify-center min-w-60">
           <span key={messageIndex} className="animate-fade-in">
             {messages[messageIndex]}

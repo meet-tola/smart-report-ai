@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useReducer } from "react";
 import { Separator } from "@/components/ui/separator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ToolbarProvider } from "./toolbar-provider";
@@ -42,8 +42,12 @@ import {
   CheckCircle,
   Circle,
   Heading,
+  Sparkles,
 } from "lucide-react";
 import { LineHeightToolbar } from "./line-height";
+import { BlockFormatToolbar } from "./block-format-toolbar";
+import { FontSizeToolbar } from "./font-size";
+import { AskAIPopup } from "../ask-ai-popup";
 
 interface EditorToolbarProps {
   editor: Editor;
@@ -55,6 +59,52 @@ export const EditorToolbar = ({
   autoSaveStatus,
 }: EditorToolbarProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showAskAI, setShowAskAI] = useState(false);
+  const [savedSelectedText, setSavedSelectedText] = useState("");
+  const [selectionRange, setSelectionRange] = useState({ from: 0, to: 0 });
+  const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
+  const aiButtonRef = useRef<HTMLButtonElement>(null);
+  const [, forceUpdate] = useReducer((x) => x + 1, 0);
+
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleSelectionUpdate = () => forceUpdate();
+    editor.on("selectionUpdate", handleSelectionUpdate);
+
+    return () => {
+      editor.off("selectionUpdate", handleSelectionUpdate);
+    };
+  }, [editor]);
+
+  const handleAIAsk = () => {
+    if (!editor) return;
+
+    const { from, to } = editor.state.selection;
+    const text = editor.state.doc.textBetween(from, to, " ");
+
+    if (!text.trim()) {
+      // Optional: Show a toast or alert "Please select text first"
+      return;
+    }
+
+    setSavedSelectedText(text);
+    setSelectionRange({ from, to });
+
+    if (aiButtonRef.current) {
+      const rect = aiButtonRef.current.getBoundingClientRect();
+      setPopupPosition({
+        x: rect.left + window.scrollX,
+        y: rect.bottom + window.scrollY + 10,
+      });
+    }
+
+    setShowAskAI(true);
+  };
+
+  const handleClosePopup = () => {
+    setShowAskAI(false);
+  };
 
   return (
     <div className="sticky top-0 z-20 w-full bg-background/95 backdrop-blur-sm">
@@ -77,13 +127,14 @@ export const EditorToolbar = ({
               <BoldToolbar />
               <ItalicToolbar />
               <UnderlineToolbar />
+              <FontSizeToolbar />
+              <ColorHighlightToolbar />
             </div>
 
             {/* Desktop Structure Tools - Visible on sm+ */}
             <div className="hidden sm:flex items-center gap-1">
-              <HeadingsToolbar />
+              <BlockFormatToolbar />
               <LineHeightToolbar />
-              <Separator orientation="vertical" className="mx-0.5 h-6" />
               <AlignmentTooolbar />
               <BulletListToolbar />
               <OrderedListToolbar />
@@ -197,8 +248,17 @@ export const EditorToolbar = ({
             <div className="hidden md:flex items-center gap-1">
               <Separator orientation="vertical" className="mx-0.5 h-6" />
               <SearchAndReplaceToolbar />
+              <Button
+                ref={aiButtonRef}
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={handleAIAsk}
+                title="Ask AI"
+              >
+                <Sparkles className="h-4 w-4" />
+              </Button>
               <ImagePlaceholderToolbar />
-              <ColorHighlightToolbar />
             </div>
 
             <Separator orientation="vertical" className="mx-0.5 h-6" />
@@ -301,6 +361,17 @@ export const EditorToolbar = ({
           </div>
         </TooltipProvider>
       </ToolbarProvider>
+
+      {/* AI Popup */}
+      {showAskAI && (
+        <AskAIPopup
+          selectedText={savedSelectedText}
+          position={popupPosition}
+          onClose={handleClosePopup}
+          editor={editor}
+          selectionRange={selectionRange}
+        />
+      )}
     </div>
   );
 };

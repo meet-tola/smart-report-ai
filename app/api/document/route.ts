@@ -10,10 +10,16 @@ export async function GET() {
     if (!supabaseUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    
+    const prismaUser = await prisma.user.findUnique({
+      where: {
+        authId: supabaseUser.id,  
+      },
+    });
 
     const documents = await prisma.document.findMany({
       where: {
-        userId: supabaseUser.id,
+        userId: prismaUser.id,
       },
       select: {
         id: true,

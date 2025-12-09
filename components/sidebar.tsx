@@ -177,7 +177,7 @@ export default function Sidebar({ recentDocument, onNavigate }: SidebarProps) {
             <Button
               variant="ghost"
               className={cn(
-                "w-full justify-start gap-3 transition-colors",
+                "w-full justify-start gap-3 transition-colors cursor-pointer",
                 // CHANGE 3: Handle padding logic with lg: prefix
                 collapsed ? "px-4 lg:justify-center lg:px-2" : "px-4",
                 isActive && "bg-gray-200 text-gray-900",

@@ -8,14 +8,11 @@ export async function POST(req: Request) {
   try {
     const supabase = await createClient();
     const { data: { user: supabaseUser } } = await supabase.auth.getUser();
-    console.log("User making update request:", supabaseUser?.id);
-
     if (!supabaseUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { documentId, content } = await req.json();
-    console.log("Auto-saving content...", { documentId, content });
 
     if (!documentId) {
       return NextResponse.json({ error: "Document ID required" }, { status: 400 });
@@ -24,12 +21,10 @@ export async function POST(req: Request) {
     const updated = await prisma.document.update({
       where: { 
         id: documentId,
-        userId: supabaseUser.id,
       },
       data: { content },
     });
 
-    // Generate thumbnail server-side after content update
     let thumbnailUrl: string | null = updated.thumbnail;
     try {
       const newThumbnailUrl = await generateThumbnail(content, documentId);

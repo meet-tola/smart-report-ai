@@ -38,7 +38,7 @@ const LinkToolbar = React.forwardRef<HTMLButtonElement, React.ComponentPropsWith
             <Button
               variant="ghost"
               size="sm"
-              className={cn("h-8 w-max px-3 font-normal", editor?.isActive("link") && "bg-accent", className)}
+              className={cn("h-6 w-max cursor-pointer px-3 font-normal", editor?.isActive("link") && "bg-accent", className)}
               ref={ref}
               {...props}
             >

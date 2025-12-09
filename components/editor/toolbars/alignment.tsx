@@ -90,8 +90,8 @@ export const AlignmentTooolbar = () => {
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger disabled={isDisabled} asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-max font-normal">
-              <span className="mr-2">{alignmentOptions[findIndex(currentTextAlign())]?.icon}</span>
+            <Button variant="ghost" size="sm" className="h-7 w-max font-normal">
+              <span>{alignmentOptions[findIndex(currentTextAlign())]?.icon}</span>
               {/* {alignmentOptions[findIndex(currentTextAlign())]?.name} */}
               <ChevronDown className=" h-4 w-4" />
             </Button>

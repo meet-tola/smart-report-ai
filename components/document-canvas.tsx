@@ -27,7 +27,7 @@ import { SmartSidebar } from "./smart-sidebar";
 import { TextEditor } from "./editor/text-editor";
 import { EditorToolbar } from "./editor/toolbars/editor-toolbar";
 import { UpdateDetailsModal } from "./editor/update-details-modal";
-import { AILoadingSkeleton } from "@/components/ai-loading-skeleton"; // Adjust path as needed
+import { AILoadingSkeleton } from "@/components/ai-loading-skeleton";
 
 interface DocumentCanvasProps {
   fileType: string;
@@ -75,13 +75,13 @@ export default function DocumentCanvas({
           setTimeout(() => setAutoSaveStatus("idle"), 2000);
         } catch (err) {
           console.error("Auto-save error:", err);
-          setAutoSaveStatus("idle"); // Reset on error
+          setAutoSaveStatus("idle"); 
         }
-      }, 1000); // 1 second debounce
+      }, 1000); 
 
       return () => clearTimeout(timeoutId);
     },
-    [documentId] // Depend on documentId
+    [documentId]
   );
 
   const saveContentToDB = async (html: string, newStatus?: string) => {
@@ -90,7 +90,6 @@ export default function DocumentCanvas({
         documentId,
         content: html,
       };
-      console.log("Auto-saving content...", body);
       if (newStatus) {
         body.status = newStatus;
       }
@@ -98,10 +97,9 @@ export default function DocumentCanvas({
         method: "POST",
         body: JSON.stringify(body),
       });
-      console.log("Content auto-saved.");
     } catch (err) {
       console.error("Auto-save error:", err);
-      throw err; // Re-throw for handling in caller
+      throw err; 
     }
   };
 

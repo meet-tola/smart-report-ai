@@ -63,10 +63,9 @@ export function SearchAndReplaceToolbar() {
               onClick={() => {
                 setOpen(!open)
               }}
-              className={cn("h-8 w-max px-3 font-normal")}
+              className={cn("h-8 w-max cursor-pointer px-3 font-normal")}
             >
-              <Repeat className="mr-2 h-4 w-4" />
-              {/* <p>Search & Replace</p> */}
+              <Repeat className="h-4 w-4" />
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>

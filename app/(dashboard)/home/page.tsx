@@ -4,7 +4,24 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, FileText, LayoutTemplate, Loader2 } from "lucide-react";
+import {
+  Upload,
+  FileText,
+  LayoutTemplate,
+  Loader2,
+  MoreVertical,
+  Star,
+  Download,
+  Share2,
+  Link2,
+  Trash2,
+  ChevronDown,
+  SortDesc,
+  List,
+  Grid,
+  Folder,
+  FileImage,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,22 +29,32 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { TemplateGallery } from "@/components/template-gallery";
 import { InputBar } from "@/components/input-bar";
-import {
-  getFileTypeColor,
-  getFriendlyFileType,
-} from "@/lib/document-utils";
+import { getFileTypeColor, getFriendlyFileType } from "@/lib/document-utils";
 import Image from "next/image";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface Document {
   id: string;
   title: string;
-  fileType?: string; 
+  fileType?: string;
   createdAt: string;
   updatedAt: string;
   content: string;
-  thumbnail?: string; 
+  thumbnail?: string;
 }
 
 interface RecentDocument {
@@ -36,7 +63,8 @@ interface RecentDocument {
   type: string;
   updatedAt: string;
   content: string;
-  thumbnail?: string; 
+  thumbnail?: string;
+  isFavorite?: boolean;
 }
 
 export default function DashboardPage() {
@@ -50,6 +78,15 @@ export default function DashboardPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [recentDocuments, setRecentDocuments] = useState<RecentDocument[]>([]);
 
+  // New states for filters and view
+  const [filterType, setFilterType] = useState<
+    "All" | "Documents" | "Presentations" | "Projects"
+  >("All");
+  const [sortBy, setSortBy] = useState<"Latest" | "Oldest" | "A-Z" | "Z-A">(
+    "Latest"
+  );
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
   // Fetch documents
   useEffect(() => {
     const fetchAndProcessDocuments = async () => {
@@ -57,6 +94,7 @@ export default function DashboardPage() {
         const res = await fetch("/api/document");
         if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
         const data = await res.json();
+        console.log("✅ documents fetched:", data);
 
         const documentsList: Document[] = data.documents || [];
         setDocuments(documentsList);
@@ -66,10 +104,11 @@ export default function DashboardPage() {
           const recentDoc: RecentDocument = {
             id: doc.id,
             title: doc.title,
-            type: doc.fileType || 'text/html', 
+            type: doc.fileType || "text/html",
             updatedAt: doc.updatedAt,
             content: "",
-            thumbnail: doc.thumbnail || undefined, 
+            thumbnail: doc.thumbnail || undefined,
+            isFavorite: false, // Default, can be fetched from DB
           };
           return recentDoc;
         });
@@ -103,10 +142,10 @@ export default function DashboardPage() {
     if (diffInDays === 0) return "Today";
     if (diffInDays === 1) return "Yesterday";
     if (diffInDays < 7) return `${diffInDays} days ago`;
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric' 
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     });
   };
 
@@ -145,9 +184,57 @@ export default function DashboardPage() {
     router.push(`/templates/${templateId}`);
   };
 
+  const toggleFavorite = (docId: string) => {
+    setRecentDocuments((prev) =>
+      prev.map((doc) =>
+        doc.id === docId ? { ...doc, isFavorite: !doc.isFavorite } : doc
+      )
+    );
+  };
+
+  const handleThreeDotClick = (e: React.MouseEvent, docId: string) => {
+    e.stopPropagation();
+    // Handle dropdown actions here, e.g., download, share, etc.
+    console.log(`Action for doc ${docId}`);
+  };
+
   const isActive = (tab: "documents" | "upload" | "templates") =>
     activeTab === tab;
   const isDocumentsDisabled = recentDocuments.length === 0;
+
+  // Filter and sort recentDocuments
+  const filteredAndSortedDocuments = recentDocuments
+    .filter((doc) => {
+      // Simple filter based on type; extend as needed
+      if (filterType === "All") return true;
+      if (filterType === "Documents")
+        return doc.type.startsWith("text/") || doc.type === "application/pdf";
+      if (filterType === "Presentations")
+        return (
+          doc.type.includes("presentation") || doc.type.includes("powerpoint")
+        );
+      if (filterType === "Projects") return doc.type.includes("project");
+      return true;
+    })
+    .sort((a, b) => {
+      const aDate = new Date(a.updatedAt).getTime();
+      const bDate = new Date(b.updatedAt).getTime();
+      const aTitle = a.title.toLowerCase();
+      const bTitle = b.title.toLowerCase();
+
+      switch (sortBy) {
+        case "Latest":
+          return bDate - aDate;
+        case "Oldest":
+          return aDate - bDate;
+        case "A-Z":
+          return aTitle.localeCompare(bTitle);
+        case "Z-A":
+          return bTitle.localeCompare(aTitle);
+        default:
+          return 0;
+      }
+    });
 
   // Skeleton component for document cards
   const DocumentSkeleton = () => (
@@ -162,6 +249,125 @@ export default function DashboardPage() {
           </div>
         </div>
       ))}
+    </div>
+  );
+
+  // List View Item
+  const ListViewItem = ({ doc }: { doc: RecentDocument }) => (
+    <div
+      onClick={() => handleDocumentClick(doc.id)}
+      className="group flex items-center space-x-4 p-4 hover:bg-muted/50 rounded-lg transition-colors w-full text-left cursor-pointer"
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          handleDocumentClick(doc.id);
+        }
+      }}
+    >
+      <div className="relative w-16 h-16 shrink-0 rounded-lg overflow-hidden bg-muted">
+        {doc.thumbnail ? (
+          <Image
+            src={doc.thumbnail}
+            alt={doc.title}
+            fill
+            className="object-cover"
+          />
+        ) : (
+          <div
+            className={`w-full h-full flex flex-col items-center justify-center ${getFileTypeColor(
+              doc.type
+            )}`}
+          >
+            <span className="text-xs font-medium capitalize">
+              {doc.type.split("/").pop() || doc.type}
+            </span>
+          </div>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <h3 className="font-medium text-sm line-clamp-1 group-hover:text-primary transition-colors">
+          {doc.title}
+        </h3>
+        <div className="flex items-center gap-2 mt-1">
+          <p className="text-xs text-muted-foreground">
+            {getFriendlyFileType(doc.type)}
+          </p>
+          <span className="text-muted-foreground">•</span>
+          <p className="text-xs text-muted-foreground/70">
+            Last edited {formatRelativeTime(doc.updatedAt)}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center space-x-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleFavorite(doc.id);
+              }}
+              className="h-8 w-8 p-0"
+            >
+              <Star
+                className={`w-4 h-4 ${
+                  doc.isFavorite
+                    ? "text-yellow-500 fill-yellow-500"
+                    : "text-muted-foreground"
+                }`}
+              />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Favorite</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => e.stopPropagation()}
+                  className="h-8 w-8 p-0"
+                >
+                  <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem
+                  onClick={(e) => handleThreeDotClick(e, doc.id)}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => handleThreeDotClick(e, doc.id)}
+                >
+                  <Share2 className="w-4 h-4 mr-2" />
+                  Share
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => handleThreeDotClick(e, doc.id)}
+                >
+                  <Link2 className="w-4 h-4 mr-2" />
+                  Copy link
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={(e) => handleThreeDotClick(e, doc.id)}
+                  className="text-destructive"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Move to trash
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </TooltipTrigger>
+          <TooltipContent>More actions</TooltipContent>
+        </Tooltip>
+      </div>
     </div>
   );
 
@@ -211,7 +417,7 @@ export default function DashboardPage() {
             onClick={() => setActiveTab("documents")}
             disabled={isDocumentsDisabled}
           >
-            Your Documents
+            Recents
           </Button>
           <Button
             variant="outline"
@@ -254,53 +460,256 @@ export default function DashboardPage() {
           {/* Recent Documents Tab */}
           {activeTab === "documents" && (
             <div className="animate-in fade-in duration-300">
-              <h2 className="text-2xl font-semibold mb-6">
-                Your Recent Documents
-              </h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-semibold">Recent</h2>
+                <div className="flex items-center space-x-2">
+                  {/* Filter Dropdown */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            className="flex items-center space-x-1 h-9 px-3"
+                          >
+                            <FileText className="w-4 h-4" />
+                            <span>{filterType}</span>
+                            <ChevronDown className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Filter by type</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => setFilterType("All")}
+                          >
+                            <FileText className="w-4 h-4 mr-2" />
+                            All
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setFilterType("Documents")}
+                          >
+                            <FileText className="w-4 h-4 mr-2" />
+                            Documents
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setFilterType("Presentations")}
+                          >
+                            <FileImage className="w-4 h-4 mr-2" />
+                            Presentations
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setFilterType("Projects")}
+                          >
+                            <Folder className="w-4 h-4 mr-2" />
+                            Projects
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TooltipTrigger>
+                    <TooltipContent>Filter documents</TooltipContent>
+                  </Tooltip>
+
+                  {/* Sort Dropdown */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-9 w-9 p-0">
+                            <SortDesc className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => setSortBy("Latest")}>
+                            Latest
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setSortBy("Oldest")}>
+                            Oldest
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setSortBy("A-Z")}>
+                            A to Z
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setSortBy("Z-A")}>
+                            Z to A
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TooltipTrigger>
+                    <TooltipContent>Sort documents</TooltipContent>
+                  </Tooltip>
+
+                  {/* View Toggle */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="h-9 w-9 p-0"
+                        onClick={() =>
+                          setViewMode(viewMode === "grid" ? "list" : "grid")
+                        }
+                      >
+                        {viewMode === "grid" ? (
+                          <List className="w-4 h-4" />
+                        ) : (
+                          <Grid className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Toggle view</TooltipContent>
+                  </Tooltip>
+                </div>
+              </div>
+
               {isLoadingDocuments ? (
                 <DocumentSkeleton />
-              ) : recentDocuments.length > 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {recentDocuments.map((doc) => (
-                    <button
-                      key={doc.id}
-                      onClick={() => handleDocumentClick(doc.id)}
-                      className="group cursor-pointer text-left"
-                    >
-                      <div className="relative mb-3 rounded-lg overflow-hidden bg-muted border group-hover:border-primary/50 transition-colors h-40">
-                        {doc.thumbnail ? (
-                          <Image
-                            src={doc.thumbnail}
-                            alt={doc.title}
-                            fill 
-                            className="object-cover"
-                          />
-                        ) : (
-                          <div
-                            className={`w-full h-full flex flex-col items-center justify-center ${getFileTypeColor(
-                              doc.type
-                            )}`}
-                          >
-
-                            <span className="text-xs font-medium capitalize">
-                              {doc.type.split("/").pop() || doc.type}
-                            </span>
+              ) : filteredAndSortedDocuments.length > 0 ? (
+                <>
+                  {viewMode === "grid" ? (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {filteredAndSortedDocuments.map((doc) => (
+                        <div
+                          key={doc.id}
+                          onClick={() => handleDocumentClick(doc.id)}
+                          className="group relative cursor-pointer text-left"
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              handleDocumentClick(doc.id);
+                            }
+                          }}
+                        >
+                          <div className="relative mb-3 rounded-lg overflow-hidden bg-muted border group-hover:border-primary/50 transition-colors h-40">
+                            {doc.thumbnail ? (
+                              <Image
+                                src={doc.thumbnail}
+                                alt={doc.title}
+                                fill
+                                className="object-cover"
+                              />
+                            ) : (
+                              <div
+                                className={`w-full h-full flex flex-col items-center justify-center ${getFileTypeColor(
+                                  doc.type
+                                )}`}
+                              >
+                                <span className="text-xs font-medium capitalize">
+                                  {doc.type.split("/").pop() || doc.type}
+                                </span>
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                            {/* Hover actions */}
+                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleFavorite(doc.id);
+                                    }}
+                                    className="h-8 w-8 p-0 bg-black/20 hover:bg-black/30 rounded-full"
+                                  >
+                                    <Star
+                                      className={`w-4 h-4 ${
+                                        doc.isFavorite
+                                          ? "text-yellow-500 fill-yellow-500"
+                                          : "text-white"
+                                      }`}
+                                    />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="left">
+                                  Favorite
+                                </TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="h-8 w-8 p-0 bg-black/20 hover:bg-black/30 rounded-full"
+                                      >
+                                        <MoreVertical className="w-4 h-4 text-white" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent
+                                      align="end"
+                                      className="w-48"
+                                    >
+                                      <DropdownMenuItem
+                                        onClick={(e) =>
+                                          handleThreeDotClick(e, doc.id)
+                                        }
+                                      >
+                                        <Download className="w-4 h-4 mr-2" />
+                                        Download
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={(e) =>
+                                          handleThreeDotClick(e, doc.id)
+                                        }
+                                      >
+                                        <Share2 className="w-4 h-4 mr-2" />
+                                        Share
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={(e) =>
+                                          handleThreeDotClick(e, doc.id)
+                                        }
+                                      >
+                                        <Link2 className="w-4 h-4 mr-2" />
+                                        Copy link
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        onClick={(e) =>
+                                          handleThreeDotClick(e, doc.id)
+                                        }
+                                        className="text-destructive"
+                                      >
+                                        <Trash2 className="w-4 h-4 mr-2" />
+                                        Move to trash
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </TooltipTrigger>
+                                <TooltipContent side="left">
+                                  More actions
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
                           </div>
-                        )}
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
-                      </div>
-                      <h3 className="font-medium text-sm line-clamp-1 group-hover:text-primary transition-colors">
-                        {doc.title}
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {getFriendlyFileType(doc.type)}
-                      </p>
-                      <p className="text-xs text-muted-foreground/70">
-                        Last edited {formatRelativeTime(doc.updatedAt)}
-                      </p>
-                    </button>
-                  ))}
-                </div>
+                          <h3 className="font-medium text-sm line-clamp-1 group-hover:text-primary transition-colors">
+                            {doc.title}
+                          </h3>
+                          <div className="flex items-center gap-2 mt-1">
+                            <p className="text-xs text-muted-foreground">
+                              {getFriendlyFileType(doc.type)}
+                            </p>
+                            <span className="text-muted-foreground">•</span>
+                            <p className="text-xs text-muted-foreground/70">
+                              Last edited {formatRelativeTime(doc.updatedAt)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {filteredAndSortedDocuments.map((doc) => (
+                        <ListViewItem key={doc.id} doc={doc} />
+                      ))}
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="text-center py-12">
                   <FileText className="w-16 h-16 text-muted-foreground/40 mx-auto mb-4" />

@@ -6,15 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sparkles, X, Clipboard, Check } from "lucide-react";
-import { Editor } from "@tiptap/core"; // NEW: Import for types
+import { Editor } from "@tiptap/core";
 import { cn } from "@/lib/utils";
 
 interface AskAIPopupProps {
   selectedText: string;
   position?: { x: number; y: number };
   onClose: () => void;
-  editor: Editor | null; // NEW: For applying changes
-  selectionRange: { from: number; to: number }; // NEW: Original selection for precise replace
+  editor: Editor | null;
+  selectionRange: { from: number; to: number };
 }
 
 interface AIResponse {
@@ -26,8 +26,17 @@ interface AIResponse {
   };
 }
 
+const suggestions = [
+  { label: "Rewrite", question: "Rewrite this text in a more engaging way." },
+  { label: "Summarize", question: "Summarize this text concisely." },
+  { label: "Explain", question: "Explain this concept in simple terms." },
+  { label: "Expand", question: "Expand on this idea with more details." },
+  { label: "Fix", question: "Fix grammar, spelling, and improve clarity." },
+];
+
 export function AskAIPopup({ 
   selectedText, 
+  position,
   onClose, 
   editor, 
   selectionRange 
@@ -36,7 +45,7 @@ export function AskAIPopup({
   const [aiResponse, setAiResponse] = useState<AIResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [applied, setApplied] = useState(false); // NEW: Visual feedback
+  const [applied, setApplied] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   // Close when clicking outside
@@ -104,15 +113,27 @@ export function AskAIPopup({
     // Optional: Show toast "Copied!"
   };
 
+  const popupStyle = position ? {
+    position: 'fixed' as const,
+    left: `${position.x}px`,
+    top: `${position.y}px`,
+    zIndex: 50,
+  } : undefined;
+
+  const baseClassName = "w-full max-w-md px-5 py-4 bg-background border shadow-xl rounded-2xl animate-in fade-in duration-200";
+  const className = cn(
+    baseClassName,
+    applied && "border-green-500",
+    !position && "fixed bottom-6 left-1/2 -translate-x-1/2 z-9999"
+  );
+
   return (
     <Card
       ref={cardRef}
+      style={popupStyle}
       onPointerDown={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
-      className={cn(
-        "fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-md px-5 py-4 bg-background border shadow-xl rounded-2xl z-9999 animate-in fade-in duration-200",
-        applied && "border-green-500" 
-      )}
+      className={className}
     >
       <CardContent className="p-0 pt-3">
         {/* Header */}
@@ -137,8 +158,26 @@ export function AskAIPopup({
             Selected Text
           </p>
           <p className="text-xs italic text-foreground/70 line-clamp-2">
-            “{selectedText}”
+            &quot;{selectedText}&quot;
           </p>
+        </div>
+
+        {/* Quick Suggestions */}
+        <div className="mb-3">
+          <p className="text-xs text-muted-foreground mb-1">Quick suggestions:</p>
+          <div className="flex flex-wrap gap-1">
+            {suggestions.map((s) => (
+              <Button
+                key={s.label}
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={() => setQuestion(s.question)}
+              >
+                {s.label}
+              </Button>
+            ))}
+          </div>
         </div>
 
         {/* Query Input */}
@@ -147,7 +186,7 @@ export function AskAIPopup({
           onChange={(e) => setQuestion(e.target.value)}
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
-          placeholder="Ask to rewrite, summarize, explain, or expand..."
+          placeholder="Or ask your own question..."
           className="resize-none text-sm mb-3 h-16"
           disabled={isLoading}
         />

@@ -57,9 +57,12 @@ export default function LoginPage() {
     try {
       await supabase.auth.signInWithOAuth({
         provider: "google",
+        options: {
+          redirectTo: `http://localhost:3000/auth/callback`,
+        },
       });
     } catch (err) {
-      setErrorMessage("Google login failed.");
+      setErrorMessage("Google signup failed.");
       setIsGoogleLoading(false);
     }
   };
@@ -68,9 +71,17 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center flex-col gap-1 p-4 sm:p-6">
       <div className="flex flex-col justify-center items-center mb-3 text-center max-w-sm w-full">
         <div className="mb-4">
-          <Image src="/smartreport.ai-logo.png" alt="Logo" width={150} height={150} priority />
+          <Image
+            src="/smartreport.ai-logo.png"
+            alt="Logo"
+            width={150}
+            height={150}
+            priority
+          />
         </div>
-        <h2 className="text-2xl sm:text-3xl text-gray-900 font-semibold">Welcome Back</h2>
+        <h2 className="text-2xl sm:text-3xl text-gray-900 font-semibold">
+          Welcome Back
+        </h2>
         <p className="text-slate-600 text-sm sm:text-base">
           Join thousands of students streamlining their document workflow.
         </p>
@@ -135,7 +146,11 @@ export default function LoginPage() {
             )}
           </div>
 
-          <Button type="submit" disabled={isLoading} className="w-full h-10 sm:h-12 rounded-lg text-sm sm:text-md">
+          <Button
+            type="submit"
+            disabled={isLoading}
+            className="w-full h-10 sm:h-12 rounded-lg text-sm sm:text-md"
+          >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Sign In
           </Button>
@@ -162,7 +177,9 @@ export default function LoginPage() {
             <div className="w-full border-t border-gray-200" />
           </div>
           <div className="relative flex justify-center text-xs sm:text-sm">
-            <span className="px-3 sm:px-4 bg-white text-gray-500 font-medium">OR</span>
+            <span className="px-3 sm:px-4 bg-white text-gray-500 font-medium">
+              OR
+            </span>
           </div>
         </div>
 
@@ -177,7 +194,10 @@ export default function LoginPage() {
           {isGoogleLoading ? (
             <Loader2 className="mr-2 sm:mr-3 h-4 sm:h-5 w-4 sm:w-5 animate-spin" />
           ) : (
-            <svg className="mr-2 sm:mr-3 h-4 sm:h-5 w-4 sm:w-5" viewBox="0 0 24 24">
+            <svg
+              className="mr-2 sm:mr-3 h-4 sm:h-5 w-4 sm:w-5"
+              viewBox="0 0 24 24"
+            >
               <path
                 fill="#4285F4"
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
