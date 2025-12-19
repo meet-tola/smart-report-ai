@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useState } from "react";
@@ -8,6 +9,7 @@ import {
   PanelsTopLeft,
   X,
   FileText,
+  Layout, 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -21,9 +23,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 
 type SidebarProps = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   documents: any[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   recentDocument: any;
   onNavigate?: () => void;
 };
@@ -32,12 +32,13 @@ export default function Sidebar({ recentDocument, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const isEditingThisDoc = pathname === `/document/${recentDocument?.id}`;
 
-  // CHANGE 1: Set default to TRUE so it is collapsed on first load
   const [collapsed, setCollapsed] = useState(true);
   const [isHoveringLogo, setIsHoveringLogo] = useState(false);
 
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: Home, href: "/" },
+    { id: "templates", label: "Templates", icon: Layout, href: "/templates" },
+
     {
       id: "projects",
       label: "My Projects",
@@ -83,7 +84,9 @@ export default function Sidebar({ recentDocument, onNavigate }: SidebarProps) {
             <div
               className={cn(
                 "flex items-center transition-all duration-300 relative",
-                collapsed ? "gap-3 lg:flex-col lg:w-8 cursor-ew-resize" : "gap-3"
+                collapsed
+                  ? "gap-3 lg:flex-col lg:w-8 cursor-ew-resize"
+                  : "gap-3"
               )}
               onMouseEnter={handleLogoAreaMouseEnter}
               onMouseLeave={handleLogoAreaMouseLeave}
@@ -169,6 +172,7 @@ export default function Sidebar({ recentDocument, onNavigate }: SidebarProps) {
         {navItems.map(({ id, label, icon: Icon, href }) => {
           const isActive =
             (id === "dashboard" && pathname === "/") ||
+            (id === "templates" && pathname.startsWith("/templates")) ||
             (id === "projects" && pathname.startsWith("/projects")) ||
             (id === "billing" && pathname === "/billing");
 

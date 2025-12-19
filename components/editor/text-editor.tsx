@@ -3,7 +3,7 @@
 
 import type React from "react"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import "./tiptap.css"
 import { cn } from "@/lib/utils"
 import { ImageExtension } from "@/components/editor/extensions/image"
@@ -26,6 +26,14 @@ import { AskAIPopup } from "./ask-ai-popup"
 import { Button } from "@/components/ui/button"
 import { Sparkles } from "lucide-react"
 import { TipTapFloatingMenu } from "./extensions/floating-menu"
+import { ToolbarProvider } from "@/components/editor/toolbars/toolbar-provider"
+import { TooltipProvider } from "@/components/ui/tooltip"
+
+import { BoldToolbar } from "@/components/editor/toolbars/bold"
+import { ItalicToolbar } from "@/components/editor/toolbars/italic"
+import { UnderlineToolbar } from "@/components/editor/toolbars/underline"
+import { StrikeThroughToolbar } from "@/components/editor/toolbars/strikethrough"
+import { ColorHighlightToolbar } from "@/components/editor/toolbars/color-and-highlight"
 
 const FontFamily = Extension.create({
   name: "fontFamily",
@@ -112,8 +120,12 @@ const extensions = [
 export function TextEditor({ className, initialContent, initialFont, onEditorReady, onContentChange }: TextEditorEnhancedProps) {
   const [showAskAI, setShowAskAI] = useState(false)
   const [savedSelectedText, setSavedSelectedText] = useState("")
+  const [buttonPosition, setButtonPosition] = useState({ x: 0, y: 0 })
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 })
   const floatingButtonRef = useRef<HTMLButtonElement>(null)
+  const floatingContainerRef = useRef<HTMLDivElement>(null)
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  const lastScrollYRef = useRef<number>(0)
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -138,52 +150,157 @@ export function TextEditor({ className, initialContent, initialFont, onEditorRea
     },
   })
 
-  useEffect(() => {
-  if (!editor) return
+  const updateButtonPosition = useCallback(() => {
+    if (!editor || !savedSelectedText) return;
+    const { from, to } = editor.state.selection;
+    if (from === to) {
+      setSavedSelectedText("");
+      return;
+    }
 
-  const handleSelectionChange = () => {
-    const { from, to } = editor.state.selection
-    const text = editor.state.doc.textBetween(from, to, " ")
-
-    if (text.trim().length > 0) {
-      setSavedSelectedText(text) 
-      if (!showAskAI) {
-        // Only show the button if popup isn't already open
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      
+      if (rect.width > 0 && rect.height > 0) {
+        // Position centered above the selection like a tooltip
+        const toolbarHeight = 40; 
+        const marginAbove = 20; 
+        
+        // Ensure position is within viewport
+        const viewportWidth = window.innerWidth;
+        // const viewportHeight = window.innerHeight;
+        
+        let x = rect.left + (rect.width / 2);
+        let y = rect.top - toolbarHeight - marginAbove;
+        
+        // Keep toolbar within viewport bounds
+        if (y < 10) y = 10;
+        if (x < 100) x = 100;
+        if (x > viewportWidth - 100) x = viewportWidth - 100;
+        
+        setButtonPosition({
+          x: x,
+          y: y,
+        });
+      } else {
+        setSavedSelectedText("");
       }
-      return
+    } else {
+      setSavedSelectedText("");
+    }
+  }, [editor, savedSelectedText]);
+
+  // Handle scroll to hide toolbar and AskAI popup
+  const hideUIOnScroll = useCallback(() => {
+    // Clear any existing timeout
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    
+    // Set a new timeout to hide UI after scrolling stops
+    scrollTimeoutRef.current = setTimeout(() => {
+      // Hide toolbar when scrolling
+      if (savedSelectedText && !showAskAI) {
+        setSavedSelectedText("");
+      }
+      
+      // Hide AskAI popup when scrolling
+      if (showAskAI) {
+        setShowAskAI(false);
+        if (window.getSelection()) {
+          window.getSelection()?.removeAllRanges();
+        }
+        setSavedSelectedText("");
+      }
+    }, 50); // 50ms delay to detect scroll end
+  }, [savedSelectedText, showAskAI]);
+
+  // Handle wheel events (for trackpads and mouse wheels)
+  const handleWheel = useCallback((e: WheelEvent) => {
+    // Only hide if there's actual vertical scroll
+    if (Math.abs(e.deltaY) > 1) {
+      hideUIOnScroll();
+    }
+  }, [hideUIOnScroll]);
+
+  // Handle touch events for mobile/trackpad
+  const handleTouchStart = useCallback(() => {
+    lastScrollYRef.current = window.scrollY;
+  }, []);
+
+  const handleTouchMove = useCallback(() => {
+    const currentScrollY = window.scrollY;
+    if (Math.abs(currentScrollY - lastScrollYRef.current) > 5) {
+      hideUIOnScroll();
+    }
+    lastScrollYRef.current = currentScrollY;
+  }, [hideUIOnScroll]);
+
+  useEffect(() => {
+    if (!editor) return
+
+    const handleSelectionChange = () => {
+      const { from, to } = editor.state.selection
+      const text = editor.state.doc.textBetween(from, to, " ")
+
+      if (text.trim().length > 0) {
+        setSavedSelectedText(text) 
+        // Delay slightly to ensure DOM update
+        requestAnimationFrame(() => {
+          updateButtonPosition();
+        });
+        return
+      }
+
+      if (!showAskAI) {
+        setSavedSelectedText("")
+      }
     }
 
-    if (!showAskAI) {
-      setSavedSelectedText("")
+    editor.on("selectionUpdate", handleSelectionChange)
+
+    const handleWindowMouseUp = () => {
+      if (showAskAI) return
+
+      const selection = window.getSelection()
+      if (!selection || selection.toString().trim().length === 0) {
+        setSavedSelectedText("")
+      }
     }
-  }
 
-  editor.on("selectionUpdate", handleSelectionChange)
+    // Add multiple event listeners for different scroll/touch scenarios
+    window.addEventListener("mouseup", handleWindowMouseUp)
+    window.addEventListener("scroll", hideUIOnScroll, { passive: true })
+    window.addEventListener("wheel", handleWheel, { passive: true })
+    window.addEventListener("touchstart", handleTouchStart, { passive: true })
+    window.addEventListener("touchmove", handleTouchMove, { passive: true })
 
-  const handleWindowMouseUp = () => {
-    if (showAskAI) return
-
-    const selection = window.getSelection()
-    if (!selection || selection.toString().trim().length === 0) {
-      setSavedSelectedText("")
+    return () => {
+      editor.off("selectionUpdate", handleSelectionChange)
+      window.removeEventListener("mouseup", handleWindowMouseUp)
+      window.removeEventListener("scroll", hideUIOnScroll)
+      window.removeEventListener("wheel", handleWheel)
+      window.removeEventListener("touchstart", handleTouchStart)
+      window.removeEventListener("touchmove", handleTouchMove)
+      
+      // Clear timeout on cleanup
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
     }
-  }
-
-  window.addEventListener("mouseup", handleWindowMouseUp)
-
-  return () => {
-    editor.off("selectionUpdate", handleSelectionChange)
-    window.removeEventListener("mouseup", handleWindowMouseUp)
-  }
-}, [editor, showAskAI])
-
+  }, [editor, showAskAI, updateButtonPosition, hideUIOnScroll, handleWheel, handleTouchStart, handleTouchMove])
 
   const handleAskAIClick = (e: React.MouseEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     if (!editor) return
+    
     const { from, to } = editor.state.selection
     const text = editor.state.doc.textBetween(from, to, " ")
     setSavedSelectedText(text)
+    
     if (floatingButtonRef.current) {
       const rect = floatingButtonRef.current.getBoundingClientRect()
       setPopupPosition({
@@ -196,7 +313,59 @@ export function TextEditor({ className, initialContent, initialFont, onEditorRea
 
   const handleClosePopup = () => {
     setShowAskAI(false)
+    // Clear selection when closing popup
+    if (window.getSelection()) {
+      window.getSelection()?.removeAllRanges();
+    }
+    setSavedSelectedText("");
   }
+
+  // Clear selection when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (showAskAI) {
+        const popupElement = document.querySelector('[data-ask-ai-popup]');
+        const isPopupClick = popupElement?.contains(e.target as Node);
+        const isEditorClick = editor?.view.dom.contains(e.target as Node);
+        const isFloatingToolbar = floatingContainerRef.current?.contains(e.target as Node);
+        
+        if (!isPopupClick && !isEditorClick && !isFloatingToolbar) {
+          handleClosePopup();
+        }
+        return;
+      }
+      
+      const target = e.target as HTMLElement;
+      const editorElement = editor?.view.dom;
+      const isEditorClick = editorElement?.contains(target);
+      const isFloatingToolbar = floatingContainerRef.current?.contains(target);
+      
+      if (!isEditorClick && !isFloatingToolbar) {
+        setSavedSelectedText("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [editor, showAskAI]);
+
+  // Hide toolbar when AskAI is shown
+  useEffect(() => {
+    if (showAskAI && savedSelectedText) {
+      // We keep savedSelectedText for the popup, but hide the toolbar
+    }
+  }, [showAskAI, savedSelectedText]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
 
   if (!editor) return null
 
@@ -207,18 +376,34 @@ export function TextEditor({ className, initialContent, initialFont, onEditorRea
 
       {savedSelectedText && !showAskAI && (
         <div
-          className="fixed z-40 animate-in fade-in zoom-in-95 duration-200"
+          ref={floatingContainerRef}
+          className="fixed z-50 animate-in fade-in zoom-in-95 duration-200 bg-white rounded-lg shadow-lg border flex items-center gap-1 p-1"
           style={{
-            left: `${window.getSelection()?.rangeCount ? window.getSelection()?.getRangeAt(0).getBoundingClientRect().right : 0}px`,
-            top: `${window.getSelection()?.rangeCount ? window.getSelection()?.getRangeAt(0).getBoundingClientRect().top : 0}px`,
-            transform: "translate(10px, -5px)",
+            left: `${buttonPosition.x}px`,
+            top: `${buttonPosition.y}px`,
+            transform: 'translateX(-50%)',
           }}
+          onClick={(e) => e.stopPropagation()}
         >
+          <TooltipProvider>
+            <ToolbarProvider editor={editor}>
+              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                <BoldToolbar />
+                <ItalicToolbar />
+                <UnderlineToolbar />
+                <StrikeThroughToolbar />
+                <ColorHighlightToolbar />
+              </div>
+            </ToolbarProvider>
+          </TooltipProvider>
+
+          <div className="w-px h-6 bg-gray-200 mx-1" />
+
           <Button
             ref={floatingButtonRef}
             size="sm"
-            variant="default"
-            className="h-8 gap-1.5 shadow-sm rounded-full px-3 text-xs"
+            variant="ghost"
+            className="h-8 gap-1.5 rounded px-2 text-xs whitespace-nowrap"
             onClick={handleAskAIClick}
           >
             <Sparkles className="h-3.5 w-3.5" />
@@ -237,7 +422,7 @@ export function TextEditor({ className, initialContent, initialFont, onEditorRea
         />
       )}
 
-      <EditorContent editor={editor} className="prose max-w-none " />
+      <EditorContent editor={editor} className="prose max-w-none" />
     </div>
   )
 }

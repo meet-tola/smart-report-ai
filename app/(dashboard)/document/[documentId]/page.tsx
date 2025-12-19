@@ -29,7 +29,6 @@ export default async function EditDocument({
   const isPending = document.status === 'pending';
 
   return (
-    <div>
       <DocumentCanvas
         fileType={effectiveFileType}
         fileData={effectiveFileData}
@@ -37,6 +36,5 @@ export default async function EditDocument({
         isPending={isPending}
         status={document.status} 
       />
-    </div>
   );
 }

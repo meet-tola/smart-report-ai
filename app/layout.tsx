@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import TanStackQueryProvider from "@/provider/TanstackProvider";
 import "./globals.css";
+// import { ThemeProvider } from "@/provider/theme-provider";
 
 // 1. Standard Width Family (Main Text)
 const polysans = localFont({
@@ -95,11 +97,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${polysans.variable} ${polysansMono.variable} ${polysansWide.variable}`}
-    >
-      <body className={polysans.className}>{children}</body>
-    </html>
+    <TanStackQueryProvider>
+      <html
+        lang="en"
+        className={`${polysans.variable} ${polysansMono.variable} ${polysansWide.variable}`}
+      >
+        {/* <ThemeProvider attribute="class" defaultTheme="system" enableSystem> */}
+          <body className={polysans.className}>{children}</body>
+        {/* </ThemeProvider> */}
+      </html>
+    </TanStackQueryProvider>
   );
 }

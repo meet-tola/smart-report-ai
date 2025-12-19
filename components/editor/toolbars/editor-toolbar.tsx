@@ -107,7 +107,7 @@ export const EditorToolbar = ({
   };
 
   return (
-    <div className="sticky top-0 z-20 w-full bg-background/95 backdrop-blur-sm">
+    <div className="w-full bg-background/95 backdrop-blur-sm">
       <ToolbarProvider editor={editor}>
         <TooltipProvider>
           <div className="flex items-center gap-1 px-3 py-2 h-12">
@@ -272,7 +272,9 @@ export const EditorToolbar = ({
                   title="Share options"
                 >
                   <Share2 className="h-4 w-4" />
-                  <span className="hidden sm:inline text-sm">Share</span>
+                  <span className="hidden sm:inline md:hidden lg:hidden text-sm">
+                    Share
+                  </span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
@@ -320,7 +322,9 @@ export const EditorToolbar = ({
                   title="Version history"
                 >
                   <Clock className="h-4 w-4" />
-                  <span className="hidden sm:inline text-sm">History</span>
+                  <span className="hidden sm:inline md:hidden lg:hidden text-sm">
+                    History
+                  </span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">

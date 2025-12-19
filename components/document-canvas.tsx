@@ -116,7 +116,6 @@ export default function DocumentCanvas({
         body: JSON.stringify({ content: html, documentId }),
       });
       const data = await res.json();
-      console.log("Scan data:", data);
       setScanData(data);
       setSuggestedReplaces(data.suggestedReplaces || []);
       if (data.needsUpdate) {
@@ -157,7 +156,6 @@ export default function DocumentCanvas({
       });
 
       const html = converter.convertToHtml();
-      console.log("Converted HTML:", html);
       setContent(html);
       // Initial save with status update
       setAutoSaveStatus("saving");
@@ -221,7 +219,6 @@ export default function DocumentCanvas({
         cache: "no-store",
       });
       const { document } = await res.json();
-      console.log("Initial fetch document:", document);
       const docStatus = document.status;
       setCurrentStatus(docStatus);
 

@@ -25,40 +25,109 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  documents    Document[]
+  documents      Document[]
+  favorites      FavoriteDocument[]
+  CustomTheme    CustomTheme[]
+  GeneratedImage GeneratedImage[]
+
   tokenHistory TokenTransaction[]
 
   @@map("users")
 }
 
+enum DocumentType {
+  DOCUMENT
+  REPORT
+  PRESENTATION
+}
+
 model Document {
-  id            String @id @default(cuid())
-  userId        String
-  user          User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  title         String @default("Untitled Document")
-  content       String @default("{}")
-  thumbnail     String?
-  fileUrl       String?
-  fileType      String? 
+  title String        @default("Untitled Document")
+  type  DocumentType?
 
-  template      String?
-  aiPrompt      String?
-  docType       String @default("report")
+  content   String  @default("{}")
+  thumbnail String?
+  fileUrl   String?
+  fileType  String?
 
-  status        String @default("pending") 
+  template String?
+  aiPrompt String?
+  docType  String  @default("report")
+  isPublic Boolean @default(false)
+
+  status        String  @default("pending")
   webSources    String?
   includeImages Boolean @default(false)
 
-  version       Int    @default(1)
+  version Int @default(1)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  // Relations to specific document types
+  presentation Presentation?
 
-  versions      DocumentVersion[]
+  // Favorites
+  favorites FavoriteDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  versions DocumentVersion[]
 
   @@index([userId])
   @@map("documents")
+}
+
+model Presentation {
+  id                String       @id @default(cuid())
+  content           Json // Presentation content including slides, theme, etc.
+  theme             String       @default("default")
+  imageSource       String       @default("ai") // The image model used for generating images
+  prompt            String? // The prompt used for generating the presentation
+  presentationStyle String? // The style of the presentation
+  language          String?      @default("en-US") // The language of the presentation
+  outline           String[] // Store the presentation outline
+  searchResults     Json? // Store the search results
+  base              Document     @relation(fields: [id], references: [id], onDelete: Cascade)
+  templateId        String?
+  customThemeId     String? // Reference to custom theme if used
+  customTheme       CustomTheme? @relation(fields: [customThemeId], references: [id])
+}
+
+model CustomTheme {
+  id            String         @id @default(cuid())
+  name          String
+  description   String?
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logoUrl       String?
+  isPublic      Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  themeData     Json // Store the complete theme configuration
+  presentations Presentation[]
+
+  @@index([userId])
+}
+
+model FavoriteDocument {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+model GeneratedImage {
+  id        String   @id @default(cuid())
+  url       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prompt    String
 }
 
 model DocumentVersion {

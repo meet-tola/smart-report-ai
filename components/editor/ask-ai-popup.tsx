@@ -3,9 +3,22 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent } from "@/components/ui/card";
-import { Sparkles, X, Clipboard, Check } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Sparkles,
+  ArrowUp,
+  Clipboard,
+  Check,
+  PenTool,
+  SpellCheck,
+  FileText,
+  Expand,
+  Shrink,
+  Languages,
+  Search,
+  HelpCircle,
+  Globe,
+} from "lucide-react";
 import { Editor } from "@tiptap/core";
 import { cn } from "@/lib/utils";
 
@@ -20,47 +33,110 @@ interface AskAIPopupProps {
 interface AIResponse {
   response: string;
   suggestedAction?: {
-    type: 'replace' | 'insert';
+    type: "replace" | "insert";
     content: string;
     reason: string;
   };
 }
 
-const suggestions = [
-  { label: "Rewrite", question: "Rewrite this text in a more engaging way." },
-  { label: "Summarize", question: "Summarize this text concisely." },
-  { label: "Explain", question: "Explain this concept in simple terms." },
-  { label: "Expand", question: "Expand on this idea with more details." },
-  { label: "Fix", question: "Fix grammar, spelling, and improve clarity." },
+const suggestionGroups = [
+  {
+    title: "Improve writing",
+    items: [
+      {
+        label: "Improve writing",
+        icon: PenTool,
+        question: "Improve the writing style and clarity of this text.",
+      },
+      {
+        label: "Fix spelling & grammar",
+        icon: SpellCheck,
+        question: "Fix spelling, grammar, and improve clarity.",
+      },
+      {
+        label: "Summarize",
+        icon: FileText,
+        question: "Summarize this text concisely.",
+      },
+    ],
+  },
+  {
+    title: "Edit",
+    items: [
+      {
+        label: "Make longer",
+        icon: Expand,
+        question: "Expand on this idea with more details and examples.",
+      },
+      {
+        label: "Make shorter",
+        icon: Shrink,
+        question: "Make this text shorter while keeping the key points.",
+      },
+      {
+        label: "Simplify language",
+        icon: Languages,
+        question: "Simplify the language to make it easier to understand.",
+      },
+    ],
+  },
+  {
+    title: "Find / Search",
+    items: [
+      {
+        label: "Find online references",
+        icon: Search,
+        question: "Find reliable online sources or references for this topic.",
+      },
+      {
+        label: "Ask a question...",
+        icon: HelpCircle,
+        question: "Ask AI a custom question about the selected text:",
+      },
+      {
+        label: "Ask about the page...",
+        icon: Globe,
+        question: "Tell me more about the context or source of this content.",
+      },
+    ],
+  },
 ];
 
-export function AskAIPopup({ 
-  selectedText, 
+export function AskAIPopup({
+  selectedText,
   position,
-  onClose, 
-  editor, 
-  selectionRange 
+  onClose,
+  editor,
+  selectionRange,
 }: AskAIPopupProps) {
   const [question, setQuestion] = useState("");
   const [aiResponse, setAiResponse] = useState<AIResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [applied, setApplied] = useState(false);
-  const cardRef = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Close when clicking outside
+  // Close on outside click
   useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (!cardRef.current) return;
-      const target = e.target as Node;
-      if (!cardRef.current.contains(target)) {
-        onClose();
-      }
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!popupRef.current) return;
+      if (popupRef.current.contains(e.target as Node)) return;
+      if (editor?.view.dom.contains(e.target as Node)) return;
+      onClose();
     };
 
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [onClose]);
+    // Use capture phase for more reliable detection
+    document.addEventListener("mousedown", handleClickOutside, true);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside, true);
+    };
+  }, [onClose, editor]);
+
+  // Focus input on mount
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   const handleAskAI = async () => {
     if (!question.trim()) return;
@@ -76,14 +152,17 @@ export function AskAIPopup({
         body: JSON.stringify({
           message: question,
           context: selectedText,
-          action: question.toLowerCase().includes("rewrite") ? "rewrite" : 
-                  question.toLowerCase().includes("summarize") ? "summarize" : "general"
+          action: question.toLowerCase().includes("rewrite")
+            ? "rewrite"
+            : question.toLowerCase().includes("summarize")
+            ? "summarize"
+            : "general",
         }),
       });
 
       if (!res.ok) throw new Error("API request failed");
 
-      const data = await res.json() as AIResponse;
+      const data = (await res.json()) as AIResponse;
       setAiResponse(data);
     } catch (err) {
       setError("Failed to get AI response. Try again.");
@@ -93,11 +172,19 @@ export function AskAIPopup({
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleAskAI();
+    }
+  };
+
   const handleApply = () => {
     if (!editor || !aiResponse?.suggestedAction) return;
 
-    const { type, content } = aiResponse.suggestedAction;
-    editor.chain()
+    const { content } = aiResponse.suggestedAction;
+    editor
+      .chain()
       .focus()
       .setTextSelection(selectionRange)
       .deleteSelection()
@@ -105,170 +192,153 @@ export function AskAIPopup({
       .run();
 
     setApplied(true);
-    setTimeout(onClose, 1000); 
+    setTimeout(onClose, 1000);
   };
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
-    // Optional: Show toast "Copied!"
   };
 
-  const popupStyle = position ? {
-    position: 'fixed' as const,
-    left: `${position.x}px`,
-    top: `${position.y}px`,
-    zIndex: 50,
-  } : undefined;
-
-  const baseClassName = "w-full max-w-md px-5 py-4 bg-background border shadow-xl rounded-2xl animate-in fade-in duration-200";
-  const className = cn(
-    baseClassName,
-    applied && "border-green-500",
-    !position && "fixed bottom-6 left-1/2 -translate-x-1/2 z-9999"
-  );
+  const popupStyle = position
+    ? {
+        position: "fixed" as const,
+        left: `${position.x}px`,
+        top: `${position.y}px`,
+        zIndex: 50,
+      }
+    : {
+        position: "fixed" as const,
+        bottom: "24px",
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 9999,
+      };
 
   return (
-    <Card
-      ref={cardRef}
+    <div
+      ref={popupRef}
       style={popupStyle}
-      onPointerDown={(e) => e.stopPropagation()}
+      className="w-full max-w-lg"
       onMouseDown={(e) => e.stopPropagation()}
-      className={className}
+      onClick={(e) => e.stopPropagation()}
     >
-      <CardContent className="p-0 pt-3">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-semibold">Ask AI</h3>
-          </div>
+      {/* Minimal Input with Arrow Button */}
+      <div className="bg-background rounded-xl shadow-lg border overflow-hidden">
+        <div className="relative p-1.5">
+          <Input
+            ref={inputRef}
+            type="text"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask AI about the selected text..."
+            className="h-12 pr-14 text-base border-0 focus-visible:ring-0 shadow-none"
+            disabled={isLoading}
+          />
           <Button
-            variant="ghost"
+            onClick={handleAskAI}
+            disabled={isLoading || !question.trim()}
             size="icon"
-            className="h-6 w-6"
-            onClick={onClose}
+            className="absolute right-4 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full"
           >
-            <X className="h-4 w-4" />
+            {isLoading ? (
+              <Sparkles className="h-4 w-4 animate-pulse" />
+            ) : (
+              <ArrowUp className="h-4 w-4" />
+            )}
           </Button>
         </div>
+      </div>
 
-        {/* Context */}
-        <div className="mb-3 rounded-md bg-muted/40 p-3">
-          <p className="text-[10px] font-medium uppercase text-muted-foreground mb-1">
-            Selected Text
-          </p>
-          <p className="text-xs italic text-foreground/70 line-clamp-2">
-            &quot;{selectedText}&quot;
-          </p>
-        </div>
-
-        {/* Quick Suggestions */}
-        <div className="mb-3">
-          <p className="text-xs text-muted-foreground mb-1">Quick suggestions:</p>
-          <div className="flex flex-wrap gap-1">
-            {suggestions.map((s) => (
-              <Button
-                key={s.label}
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2 text-xs"
-                onClick={() => setQuestion(s.question)}
-              >
-                {s.label}
-              </Button>
+      {/* Scrollable Dropdown with Groups and Icons */}
+      <div className="mt-1.5 w-full max-w-xs">
+        <div className="bg-background rounded-xl shadow-lg border overflow-hidden">
+          <div className="max-h-64 overflow-y-auto py-2">
+            {" "}
+            {/* Fixed height + scrollable */}
+            {suggestionGroups.map((group, groupIdx) => (
+              <div key={group.title}>
+                <div className="px-4 py-2 text-xs font-medium text-muted-foreground">
+                  {group.title}
+                </div>
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.label}
+                      onClick={() => {
+                        setQuestion(item.question);
+                        inputRef.current?.focus();
+                      }}
+                      className="w-full px-4 py-2.5 flex items-center gap-3 text-sm hover:bg-accent transition-colors text-left"
+                    >
+                      <Icon className="h-4 w-4 text-muted-foreground" />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+                {groupIdx < suggestionGroups.length - 1 && (
+                  <div className="mx-4 my-1 border-t border-border" />
+                )}
+              </div>
             ))}
           </div>
         </div>
+      </div>
 
-        {/* Query Input */}
-        <Textarea
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          onPointerDown={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          placeholder="Or ask your own question..."
-          className="resize-none text-sm mb-3 h-16"
-          disabled={isLoading}
-        />
+      {/* Error */}
+      {error && (
+        <div className="mt-3 text-center text-sm text-destructive">{error}</div>
+      )}
 
-        {/* Ask Button */}
-        <Button
-          onClick={handleAskAI}
-          disabled={isLoading || !question.trim()}
-          className="w-full mb-3"
-          size="sm"
-          variant="outline"
-        >
-          {isLoading ? (
-            <>
-              <Sparkles className="mr-2 h-3 w-3 animate-pulse" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <Sparkles className="mr-2 h-3 w-3" />
-              Get Suggestion
-            </>
+      {/* AI Response */}
+      {aiResponse && (
+        <div className="mt-4 bg-background rounded-2xl shadow-2xl border p-5">
+          <p className="text-sm whitespace-pre-wrap">{aiResponse.response}</p>
+
+          {aiResponse.suggestedAction?.reason && (
+            <p className="text-xs text-muted-foreground mt-2 italic">
+              Reason: {aiResponse.suggestedAction.reason}
+            </p>
           )}
-        </Button>
 
-        {/* Error */}
-        {error && (
-          <p className="text-xs text-destructive mb-3 text-center">{error}</p>
-        )}
-
-        {/* AI Response */}
-        {aiResponse && (
-          <>
-            <div className="mb-3 p-3 bg-muted/20 rounded-md">
-              <p className="text-xs text-foreground">{aiResponse.response}</p>
-              {aiResponse.suggestedAction?.reason && (
-                <p className="text-xs text-muted-foreground mt-1 italic">
-                  Reason: {aiResponse.suggestedAction.reason}
-                </p>
-              )}
-            </div>
-
-            {/* Suggestion Preview & Apply */}
-            {aiResponse.suggestedAction && (
-              <div className="mb-3 p-3 border rounded-md bg-blue/10">
-                <p className="text-xs font-medium mb-1">Preview:</p>
-                <p className="text-xs bg-white p-2 rounded border font-mono">
-                  {aiResponse.suggestedAction.content}
-                </p>
-                <Button
-                  onClick={handleApply}
-                  size="sm"
-                  className="w-full mt-2"
-                  disabled={applied || !editor}
-                >
-                  {applied ? (
-                    <>
-                      <Check className="mr-2 h-3 w-3" />
-                      Applied!
-                    </>
-                  ) : (
-                    "Apply to Selection"
-                  )}
-                </Button>
+          {aiResponse.suggestedAction && (
+            <div className="mt-4 rounded-lg border bg-blue-50/50 p-4">
+              <p className="text-xs font-medium mb-2">Preview:</p>
+              <div className="rounded border bg-white p-3 text-sm font-mono">
+                {aiResponse.suggestedAction.content}
               </div>
-            )}
-
-            {/* Copy Response */}
-            {!aiResponse.suggestedAction && (
               <Button
-                onClick={() => handleCopy(aiResponse.response)}
-                variant="secondary"
+                onClick={handleApply}
                 size="sm"
-                className="w-full"
+                className="w-full mt-3"
+                disabled={applied || !editor}
               >
-                <Clipboard className="mr-2 h-3 w-3" />
-                Copy Response
+                {applied ? (
+                  <>
+                    <Check className="mr-2 h-4 w-4" />
+                    Applied!
+                  </>
+                ) : (
+                  "Apply to Selection"
+                )}
               </Button>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
+            </div>
+          )}
+
+          {!aiResponse.suggestedAction && (
+            <Button
+              onClick={() => handleCopy(aiResponse.response)}
+              variant="secondary"
+              size="sm"
+              className="w-full mt-4"
+            >
+              <Clipboard className="mr-2 h-4 w-4" />
+              Copy Response
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

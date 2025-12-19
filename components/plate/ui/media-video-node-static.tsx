@@ -1,0 +1,34 @@
+import { type PlateElementProps } from "platejs/react";
+import {
+  type TCaptionElement,
+  type TResizableProps,
+  type TVideoElement,
+} from "platejs";
+
+import { NodeApi } from "platejs";
+import { PlateElement } from "platejs/react";
+
+export function VideoElementStatic(
+  props: PlateElementProps<TVideoElement & TCaptionElement & TResizableProps>,
+) {
+  const { align = "center", caption, url, width } = props.element;
+
+  return (
+    <PlateElement {...props} className="py-2.5">
+      <div style={{ textAlign: align }}>
+        <figure
+          className="group relative m-0 inline-block cursor-default"
+          style={{ width }}
+        >
+          <video
+            className="w-full max-w-full rounded-sm object-cover px-0"
+            src={url}
+            controls
+          />
+          {caption && <figcaption>{NodeApi.string(caption[0]!)}</figcaption>}
+        </figure>
+      </div>
+      {props.children}
+    </PlateElement>
+  );
+}
