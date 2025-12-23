@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
                 aiPrompt: description,
                 docType,
                 includeImages,
-                webSources: webSources,
+                // webSources: webSources,
                 user: { connect: { authId: supabaseUser.id } },
             },
         })

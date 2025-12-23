@@ -1,79 +1,124 @@
-import { NextRequest, NextResponse } from "next/server"
-import { GoogleGenerativeAI } from "@google/generative-ai"
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { NextRequest, NextResponse } from "next/server";
+import Groq from "groq-sdk";
 import { prisma } from "@/lib/prisma";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+// Initialize Groq client with API key from environment
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY!,
+});
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: documentId } = await params;
+
   if (!documentId) {
-    return NextResponse.json({ error: "Missing document ID in URL" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing document ID in URL" },
+      { status: 400 }
+    );
   }
 
   try {
-    // Fetch pending doc
+    // Fetch pending document
     const doc = await prisma.document.findUnique({
-      where: { id: documentId }
-    })
+      where: { id: documentId },
+    });
 
-    if (!doc || doc.status !== 'pending') {
-      return NextResponse.json({ error: "Invalid document" }, { status: 400 })
+    if (!doc || doc.status !== "pending") {
+      return NextResponse.json(
+        { error: "Invalid document or wrong status" },
+        { status: 400 }
+      );
     }
 
-    // Update to generating
+    // Update status to generating
     await prisma.document.update({
       where: { id: documentId },
-      data: { status: 'generating' }
-    })
+      data: { status: "generating" },
+    });
 
-    // Build prompt from stored data
-    // let fileContext = ""
-    // if (doc.files) { 
-    //   fileContext = "Incorporate content from uploaded files."
-    // }
-
-    const sourceContext = doc.webSources === true ? "Include references to web sources where relevant." : ""
-    const imagePrompt = doc.includeImages ? "Include placeholders for relevant images (e.g., <img src='placeholder.jpg' alt='Description' class='project-image'>) with descriptive alt text." : ""
-
+    // Build detailed prompt
     const prompt = `
-Generate a complete ${doc.docType} document based on this description: "${doc.aiPrompt}".
-${sourceContext}
-${imagePrompt}
+You are an expert academic writer helping a student create a high-quality ${doc.docType}.
 
-Structure for a student project/report:
-- Title page: Centered title, subtitle (e.g., "Student Project Report"), author/date placeholders.
-- Table of Contents (if >5 sections).
-- Introduction: 200-300 words overview.
-- Main sections: 3-5 logical sections with H2/H3 headings, bullet points, numbered lists, and a table if data-heavy.
-- Conclusion: Summary and recommendations.
-- References: APA/MLA style list.
-- Use clean, academic layout: Sans-serif font (e.g., Arial), 1.5 line spacing, margins.
+Topic/Description: "${doc.aiPrompt}"
 
-Output ONLY valid HTML with inline styles (no external CSS). Use semantic tags: <h1> for title, <section>, <ul>/<ol>, <table>. Make it printable and mobile-friendly. Keep total length 1000-2000 words.
-    `
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
-    const result = await model.generateContent(prompt)
-    const html = result.response.text() || "<p>Generation failed.</p>"
+Generate a complete, well-structured document in clean, valid HTML (with inline styles only). Follow this structure:
 
-    // Update DB with content and status
+- Title page with centered main title and subtitle (e.g., "Student Project Report")
+- Author and date placeholders
+- Table of Contents (only if more than 5 sections)
+- Introduction (200–300 words)
+- 3–5 main sections with clear <h2> and <h3> headings
+- Use bullet points, numbered lists, and at least one <table> if relevant
+- Conclusion summarizing key points and insights
+- References section in APA or MLA style (include 8–12 realistic citations)
+
+Formatting requirements:
+- Use semantic HTML tags (<section>, <article>, <header>, <ul>, <ol>, <table>, etc.)
+- Inline styles only (no classes or external CSS)
+- Font: Arial or sans-serif, 1.5 line spacing, readable on mobile and printable
+- Total length: approximately 1500–2500 words
+
+Output ONLY the complete HTML code. Do not include explanations, markdown, or code blocks.
+    `;
+
+    // Use the best Groq model for long-form reasoning and academic writing
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile", // Best current model for structured, high-quality output
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a professional academic document generator. Produce clean, valid HTML with excellent structure and academic tone.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 8192, // Allows very long outputs (~6000–8000 words possible)
+      top_p: 0.95,
+      stream: false, // Set to true if you want streaming later
+    });
+
+    const html =
+      completion.choices[0]?.message?.content?.trim() ||
+      "<p>Generation failed: No content returned.</p>";
+
+    // Save generated HTML and mark as ready
     await prisma.document.update({
       where: { id: documentId },
       data: {
         content: html,
-        status: 'ready'
-      }
-    })
+        status: "ready",
+      },
+    });
 
-    return NextResponse.json({ html }, { status: 200 })
-  } catch (error) {
-    console.error("Generation Error:", error)
-    // Revert status if failed
-    await prisma.document.update({
-      where: { id: documentId },
-      data: { status: 'error' }
-    })
-    return NextResponse.json({ error: "Failed to generate document" }, { status: 500 })
+    return NextResponse.json({ html }, { status: 200 });
+  } catch (error: any) {
+    console.error("Groq Generation Error:", error);
+
+    // Revert status on failure
+    try {
+      await prisma.document.update({
+        where: { id: documentId },
+        data: { status: "error" },
+      });
+    } catch (updateError) {
+      console.error("Failed to update status to error:", updateError);
+    }
+
+    return NextResponse.json(
+      {
+        error: "Failed to generate document",
+        details: error.message || "Unknown error",
+      },
+      { status: 500 }
+    );
   }
 }

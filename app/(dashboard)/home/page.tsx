@@ -94,8 +94,6 @@ export default function DashboardPage() {
         const res = await fetch("/api/document");
         if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
         const data = await res.json();
-        console.log("✅ documents fetched:", data);
-
         const documentsList: Document[] = data.documents || [];
         setDocuments(documentsList);
 

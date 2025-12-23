@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/refs */
+// "use client";
 import { updatePresentation } from "@/app/_actions/presentation/presentationActions";
 import { usePresentationState } from "@/states/presentation-state";
 import debounce from "lodash.debounce";
@@ -53,7 +55,7 @@ export const useDebouncedSave = (options: UseDebouncedSaveOptions = {}) => {
             imageSource,
             presentationStyle,
             language,
-            thumbnailUrl,
+            thumbnail: thumbnailUrl,
           });
 
           setSavingStatus("saved");
@@ -112,7 +114,7 @@ export const useDebouncedSave = (options: UseDebouncedSaveOptions = {}) => {
         language,
         imageSource,
         presentationStyle,
-        thumbnailUrl,
+        thumbnail: thumbnailUrl,
       });
 
       setSavingStatus("saved");
