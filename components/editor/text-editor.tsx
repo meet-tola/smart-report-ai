@@ -1,39 +1,41 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useEffect, useRef, useCallback } from "react"
-import "./tiptap.css"
-import { cn } from "@/lib/utils"
-import { ImageExtension } from "@/components/editor/extensions/image"
-import { ImagePlaceholder } from "@/components/editor/extensions/image-placeholder"
-import SearchAndReplace from "@/components/editor/extensions/search-and-replace"
-import { Color } from "@tiptap/extension-color"
-import Highlight from "@tiptap/extension-highlight"
-import Link from "@tiptap/extension-link"
-import Subscript from "@tiptap/extension-subscript"
-import Superscript from "@tiptap/extension-superscript"
-import TextAlign from "@tiptap/extension-text-align"
-import { FontSize, LineHeight, TextStyle } from "@tiptap/extension-text-style"
-import Typography from "@tiptap/extension-typography"
-import Underline from "@tiptap/extension-underline"
-import { EditorContent, Extension, useEditor } from "@tiptap/react"
-import StarterKit from "@tiptap/starter-kit"
-import { FloatingToolbar } from "@/components/editor/extensions/floating-toolbar"
-import Placeholder from "@tiptap/extension-placeholder"
-import { AskAIPopup } from "./ask-ai-popup"
-import { Button } from "@/components/ui/button"
-import { Sparkles } from "lucide-react"
-import { TipTapFloatingMenu } from "./extensions/floating-menu"
-import { ToolbarProvider } from "@/components/editor/toolbars/toolbar-provider"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { useState, useEffect, useRef, useCallback } from "react";
+import "./tiptap.css";
+import { cn } from "@/lib/utils";
+import { ImageExtension } from "@/components/editor/extensions/image";
+import { ImagePlaceholder } from "@/components/editor/extensions/image-placeholder";
+import SearchAndReplace from "@/components/editor/extensions/search-and-replace";
+import { Color } from "@tiptap/extension-color";
+import Highlight from "@tiptap/extension-highlight";
+import Link from "@tiptap/extension-link";
+import Subscript from "@tiptap/extension-subscript";
+import Superscript from "@tiptap/extension-superscript";
+import TextAlign from "@tiptap/extension-text-align";
+import { FontSize, LineHeight, TextStyle } from "@tiptap/extension-text-style";
+import Typography from "@tiptap/extension-typography";
+import Underline from "@tiptap/extension-underline";
+import { EditorContent, Extension, useEditor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import { FloatingToolbar } from "@/components/editor/extensions/floating-toolbar";
+import Placeholder from "@tiptap/extension-placeholder";
+import { AskAIPopup } from "./ask-ai-popup";
+import { Button } from "@/components/ui/button";
+import { Sparkles } from "lucide-react";
+import { TipTapFloatingMenu } from "./extensions/floating-menu";
+import { ToolbarProvider } from "@/components/editor/toolbars/toolbar-provider";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
-import { BoldToolbar } from "@/components/editor/toolbars/bold"
-import { ItalicToolbar } from "@/components/editor/toolbars/italic"
-import { UnderlineToolbar } from "@/components/editor/toolbars/underline"
-import { StrikeThroughToolbar } from "@/components/editor/toolbars/strikethrough"
-import { ColorHighlightToolbar } from "@/components/editor/toolbars/color-and-highlight"
+import { BoldToolbar } from "@/components/editor/toolbars/bold";
+import { ItalicToolbar } from "@/components/editor/toolbars/italic";
+import { UnderlineToolbar } from "@/components/editor/toolbars/underline";
+import { StrikeThroughToolbar } from "@/components/editor/toolbars/strikethrough";
+import { ColorHighlightToolbar } from "@/components/editor/toolbars/color-and-highlight";
+import { SelectionHighlight } from "./extensions/selection-highlight";
 
 const FontFamily = Extension.create({
   name: "fontFamily",
@@ -44,24 +46,25 @@ const FontFamily = Extension.create({
         attributes: {
           fontFamily: {
             default: null,
-            parseHTML: (element) => element.style.fontFamily?.replace(/['"]/g, ""),
+            parseHTML: (element) =>
+              element.style.fontFamily?.replace(/['"]/g, ""),
             renderHTML: (attributes) => {
-              if (!attributes.fontFamily) return {}
-              return { style: `font-family: ${attributes.fontFamily}` }
+              if (!attributes.fontFamily) return {};
+              return { style: `font-family: ${attributes.fontFamily}` };
             },
           },
         },
       },
-    ]
+    ];
   },
-})
+});
 
 interface TextEditorEnhancedProps {
-  className?: string
-  initialContent?: string
-  initialFont?: string
-  onEditorReady?: (editor: any) => void
-  onContentChange?: (html: string) => void 
+  className?: string;
+  initialContent?: string;
+  initialFont?: string;
+  onEditorReady?: (editor: any) => void;
+  onContentChange?: (html: string) => void;
 }
 
 const extensions = [
@@ -85,13 +88,13 @@ const extensions = [
     placeholder: ({ node }) => {
       switch (node.type.name) {
         case "heading":
-          return `Heading ${node.attrs.level}`
+          return `Heading ${node.attrs.level}`;
         case "detailsSummary":
-          return "Section title"
+          return "Section title";
         case "codeBlock":
-          return ""
+          return "";
         default:
-          return "Write or type '/' for AI to get help...  "
+          return "Write or type '/' for AI to get help...  ";
       }
     },
     includeChildren: false,
@@ -111,21 +114,28 @@ const extensions = [
   Highlight.configure({
     multicolor: true,
   }),
+  SelectionHighlight,
   ImageExtension,
   ImagePlaceholder,
   SearchAndReplace,
   Typography,
-]
+];
 
-export function TextEditor({ className, initialContent, initialFont, onEditorReady, onContentChange }: TextEditorEnhancedProps) {
-  const [showAskAI, setShowAskAI] = useState(false)
-  const [savedSelectedText, setSavedSelectedText] = useState("")
-  const [buttonPosition, setButtonPosition] = useState({ x: 0, y: 0 })
-  const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 })
-  const floatingButtonRef = useRef<HTMLButtonElement>(null)
-  const floatingContainerRef = useRef<HTMLDivElement>(null)
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
-  const lastScrollYRef = useRef<number>(0)
+export function TextEditor({
+  className,
+  initialContent,
+  initialFont,
+  onEditorReady,
+  onContentChange,
+}: TextEditorEnhancedProps) {
+  const [showAskAI, setShowAskAI] = useState(false);
+  const [savedSelectedText, setSavedSelectedText] = useState("");
+  const [selectionRange, setSelectionRange] = useState<{ from: number; to: number } | null>(null);
+  const [buttonPosition, setButtonPosition] = useState({ x: 0, y: 0 });
+  const floatingButtonRef = useRef<HTMLButtonElement>(null);
+  const floatingContainerRef = useRef<HTMLDivElement>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const lastScrollYRef = useRef<number>(0);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -141,14 +151,14 @@ export function TextEditor({ className, initialContent, initialFont, onEditorRea
       if (onContentChange) {
         onContentChange(editor.getHTML());
       }
-      console.log(editor.getText())
+      console.log(editor.getText());
     },
     onCreate: ({ editor }) => {
       if (onEditorReady) {
-        onEditorReady(editor)
+        onEditorReady(editor);
       }
     },
-  })
+  });
 
   const updateButtonPosition = useCallback(() => {
     if (!editor || !savedSelectedText) return;
@@ -162,24 +172,24 @@ export function TextEditor({ className, initialContent, initialFont, onEditorRea
     if (selection && selection.rangeCount > 0) {
       const range = selection.getRangeAt(0);
       const rect = range.getBoundingClientRect();
-      
+
       if (rect.width > 0 && rect.height > 0) {
         // Position centered above the selection like a tooltip
-        const toolbarHeight = 40; 
-        const marginAbove = 20; 
-        
+        const toolbarHeight = 40;
+        const marginAbove = 20;
+
         // Ensure position is within viewport
         const viewportWidth = window.innerWidth;
         // const viewportHeight = window.innerHeight;
-        
-        let x = rect.left + (rect.width / 2);
+
+        let x = rect.left + rect.width / 2;
         let y = rect.top - toolbarHeight - marginAbove;
-        
+
         // Keep toolbar within viewport bounds
         if (y < 10) y = 10;
         if (x < 100) x = 100;
         if (x > viewportWidth - 100) x = viewportWidth - 100;
-        
+
         setButtonPosition({
           x: x,
           y: y,
@@ -198,14 +208,14 @@ export function TextEditor({ className, initialContent, initialFont, onEditorRea
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current);
     }
-    
+
     // Set a new timeout to hide UI after scrolling stops
     scrollTimeoutRef.current = setTimeout(() => {
       // Hide toolbar when scrolling
       if (savedSelectedText && !showAskAI) {
         setSavedSelectedText("");
       }
-      
+
       // Hide AskAI popup when scrolling
       if (showAskAI) {
         setShowAskAI(false);
@@ -218,12 +228,15 @@ export function TextEditor({ className, initialContent, initialFont, onEditorRea
   }, [savedSelectedText, showAskAI]);
 
   // Handle wheel events (for trackpads and mouse wheels)
-  const handleWheel = useCallback((e: WheelEvent) => {
-    // Only hide if there's actual vertical scroll
-    if (Math.abs(e.deltaY) > 1) {
-      hideUIOnScroll();
-    }
-  }, [hideUIOnScroll]);
+  const handleWheel = useCallback(
+    (e: WheelEvent) => {
+      // Only hide if there's actual vertical scroll
+      if (Math.abs(e.deltaY) > 1) {
+        hideUIOnScroll();
+      }
+    },
+    [hideUIOnScroll]
+  );
 
   // Handle touch events for mobile/trackpad
   const handleTouchStart = useCallback(() => {
@@ -239,107 +252,151 @@ export function TextEditor({ className, initialContent, initialFont, onEditorRea
   }, [hideUIOnScroll]);
 
   useEffect(() => {
-    if (!editor) return
+    if (!editor) return;
 
     const handleSelectionChange = () => {
-      const { from, to } = editor.state.selection
-      const text = editor.state.doc.textBetween(from, to, " ")
+      const { from, to } = editor.state.selection;
+      const text = editor.state.doc.textBetween(from, to, " ");
 
       if (text.trim().length > 0) {
-        setSavedSelectedText(text) 
+        setSavedSelectedText(text);
         // Delay slightly to ensure DOM update
         requestAnimationFrame(() => {
           updateButtonPosition();
         });
-        return
+        return;
       }
 
       if (!showAskAI) {
-        setSavedSelectedText("")
+        setSavedSelectedText("");
       }
-    }
+    };
 
-    editor.on("selectionUpdate", handleSelectionChange)
+    editor.on("selectionUpdate", handleSelectionChange);
 
     const handleWindowMouseUp = () => {
-      if (showAskAI) return
+      if (showAskAI) return;
 
-      const selection = window.getSelection()
+      const selection = window.getSelection();
       if (!selection || selection.toString().trim().length === 0) {
-        setSavedSelectedText("")
+        setSavedSelectedText("");
       }
-    }
+    };
 
     // Add multiple event listeners for different scroll/touch scenarios
-    window.addEventListener("mouseup", handleWindowMouseUp)
-    window.addEventListener("scroll", hideUIOnScroll, { passive: true })
-    window.addEventListener("wheel", handleWheel, { passive: true })
-    window.addEventListener("touchstart", handleTouchStart, { passive: true })
-    window.addEventListener("touchmove", handleTouchMove, { passive: true })
+    window.addEventListener("mouseup", handleWindowMouseUp);
+    window.addEventListener("scroll", hideUIOnScroll, { passive: true });
+    window.addEventListener("wheel", handleWheel, { passive: true });
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
 
     return () => {
-      editor.off("selectionUpdate", handleSelectionChange)
-      window.removeEventListener("mouseup", handleWindowMouseUp)
-      window.removeEventListener("scroll", hideUIOnScroll)
-      window.removeEventListener("wheel", handleWheel)
-      window.removeEventListener("touchstart", handleTouchStart)
-      window.removeEventListener("touchmove", handleTouchMove)
-      
+      editor.off("selectionUpdate", handleSelectionChange);
+      window.removeEventListener("mouseup", handleWindowMouseUp);
+      window.removeEventListener("scroll", hideUIOnScroll);
+      window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchmove", handleTouchMove);
+
       // Clear timeout on cleanup
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current);
       }
-    }
-  }, [editor, showAskAI, updateButtonPosition, hideUIOnScroll, handleWheel, handleTouchStart, handleTouchMove])
+    };
+  }, [
+    editor,
+    showAskAI,
+    updateButtonPosition,
+    hideUIOnScroll,
+    handleWheel,
+    handleTouchStart,
+    handleTouchMove,
+  ]);
 
   const handleAskAIClick = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (!editor) return
-    
-    const { from, to } = editor.state.selection
-    const text = editor.state.doc.textBetween(from, to, " ")
-    setSavedSelectedText(text)
-    
-    if (floatingButtonRef.current) {
-      const rect = floatingButtonRef.current.getBoundingClientRect()
-      setPopupPosition({
-        x: rect.left + window.scrollX,
-        y: rect.bottom + window.scrollY + 10,
-      })
+  e.preventDefault();
+  e.stopPropagation();
+
+  if (!editor) return;
+
+  const { from, to } = editor.state.selection;
+  const text = editor.state.doc.textBetween(from, to, " ");
+
+  if (text.trim().length === 0) return;
+
+  setSavedSelectedText(text);
+  setSelectionRange({ from, to }); 
+
+  // Apply fake highlight on the exact range
+  editor
+    .chain()
+    .setTextSelection({ from, to })
+    .setSelectionHighlight()
+    .run();
+
+  // Hide floating toolbar
+  setSavedSelectedText("");
+
+  // Position popup below selection
+  const selection = window.getSelection();
+  if (selection?.rangeCount) {
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+
+    if (rect.width > 0 && rect.height > 0) {
+      const marginBelow = 10;
+      let x = rect.left + rect.width / 2;
+      const y = rect.bottom + marginBelow;
+
+      const viewportWidth = window.innerWidth;
+      if (x < 100) x = 100;
+      if (x > viewportWidth - 100) x = viewportWidth - 100;
+
+      setButtonPosition({ x, y });
     }
-    setShowAskAI(true)
   }
 
+  setShowAskAI(true);
+};
+
   const handleClosePopup = () => {
-    setShowAskAI(false)
-    // Clear selection when closing popup
-    if (window.getSelection()) {
-      window.getSelection()?.removeAllRanges();
-    }
-    setSavedSelectedText("");
+  setShowAskAI(false);
+  setSavedSelectedText("");
+  setSelectionRange(null); // clear it
+
+  if (editor && selectionRange) {
+    editor
+      .chain()
+      .setTextSelection(selectionRange)
+      .unsetSelectionHighlight()
+      .run();
   }
+
+  window.getSelection()?.removeAllRanges();
+};
 
   // Clear selection when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (showAskAI) {
-        const popupElement = document.querySelector('[data-ask-ai-popup]');
+        const popupElement = document.querySelector("[data-ask-ai-popup]");
         const isPopupClick = popupElement?.contains(e.target as Node);
         const isEditorClick = editor?.view.dom.contains(e.target as Node);
-        const isFloatingToolbar = floatingContainerRef.current?.contains(e.target as Node);
-        
+        const isFloatingToolbar = floatingContainerRef.current?.contains(
+          e.target as Node
+        );
+
         if (!isPopupClick && !isEditorClick && !isFloatingToolbar) {
           handleClosePopup();
         }
         return;
       }
-      
+
       const target = e.target as HTMLElement;
       const editorElement = editor?.view.dom;
       const isEditorClick = editorElement?.contains(target);
       const isFloatingToolbar = floatingContainerRef.current?.contains(target);
-      
+
       if (!isEditorClick && !isFloatingToolbar) {
         setSavedSelectedText("");
       }
@@ -367,7 +424,7 @@ export function TextEditor({ className, initialContent, initialFont, onEditorRea
     };
   }, []);
 
-  if (!editor) return null
+  if (!editor) return null;
 
   return (
     <div className={cn("relative", className)}>
@@ -381,13 +438,16 @@ export function TextEditor({ className, initialContent, initialFont, onEditorRea
           style={{
             left: `${buttonPosition.x}px`,
             top: `${buttonPosition.y}px`,
-            transform: 'translateX(-50%)',
+            transform: "translateX(-50%)",
           }}
           onClick={(e) => e.stopPropagation()}
         >
           <TooltipProvider>
             <ToolbarProvider editor={editor}>
-              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              <div
+                className="flex items-center gap-1"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <BoldToolbar />
                 <ItalicToolbar />
                 <UnderlineToolbar />
@@ -413,16 +473,16 @@ export function TextEditor({ className, initialContent, initialFont, onEditorRea
       )}
 
       {showAskAI && (
-        <AskAIPopup 
-          selectedText={savedSelectedText} 
-          position={popupPosition} 
+        <AskAIPopup
+          selectedText={savedSelectedText}
+          position={buttonPosition}
           onClose={handleClosePopup}
-          editor={editor} 
-          selectionRange={{ from: editor.state.selection.from, to: editor.state.selection.to }}
+          editor={editor}
+          selectionRange={selectionRange!}
         />
       )}
 
       <EditorContent editor={editor} className="prose max-w-none" />
     </div>
-  )
+  );
 }

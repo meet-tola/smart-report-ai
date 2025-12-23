@@ -57,6 +57,7 @@ model Document {
   template String?
   aiPrompt String?
   docType  String  @default("report")
+  references Json?
   isPublic Boolean @default(false)
 
   status        String  @default("pending")

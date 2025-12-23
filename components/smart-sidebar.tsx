@@ -35,7 +35,13 @@ interface SmartSidebarProps {
     reason: string;
     confidence: number;
   }>;
-  onReplacesUpdate?: (replaces: any[]) => void; // For parent to sync
+  onReplacesUpdate?: (replaces: any[]) => void;
+  references?: Array<{
+    title: string;
+    authors: string;
+    year: string;
+    url: string;
+  }>;
 }
 
 interface ChatMessage {
@@ -46,8 +52,8 @@ interface ChatMessage {
     position?: number;
     content: string;
     reason: string;
-    original?: string; // For replace actions
-    originalRange?: { from: number; to: number }; // NEW: For precise replacement
+    original?: string;
+    originalRange?: { from: number; to: number };
   };
 }
 
@@ -59,6 +65,7 @@ export function SmartSidebar({
   documentId,
   suggestedReplaces = [],
   onReplacesUpdate,
+  references,
 }: SmartSidebarProps) {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
@@ -105,7 +112,9 @@ export function SmartSidebar({
     };
     setChatMessages((prev) => [...prev, userMessage]);
     const selectedText = getSelectedText();
-    const originalRange = editor ? { from: editor.state.selection.from, to: editor.state.selection.to } : undefined; // NEW: Capture range
+    const originalRange = editor
+      ? { from: editor.state.selection.from, to: editor.state.selection.to }
+      : undefined; // NEW: Capture range
     setInput("");
 
     try {
@@ -134,10 +143,10 @@ export function SmartSidebar({
       }
 
       if (data.suggestedAction) {
-        // IMPROVED: Augment suggestedAction with original and originalRange for replaces
-        const augmentedAction = data.suggestedAction.type === "replace"
-          ? { ...data.suggestedAction, original: selectedText, originalRange }
-          : data.suggestedAction;
+        const augmentedAction =
+          data.suggestedAction.type === "replace"
+            ? { ...data.suggestedAction, original: selectedText, originalRange }
+            : data.suggestedAction;
         setPendingAction(augmentedAction);
         setShowActionDialog(true);
       }
@@ -158,24 +167,17 @@ export function SmartSidebar({
     try {
       const { type, content, originalRange, position } = pendingAction;
       if (type === "replace") {
-        // IMPROVED: Use insertContent to replace selection (no SearchAndReplace)
         if (originalRange) {
           editor
             .chain()
             .focus()
             .setTextSelection(originalRange)
-            .insertContent(content) // Replaces the selection
-            .run();
-        } else {
-          // Fallback: Insert at cursor if no range
-          editor
-            .chain()
-            .focus()
             .insertContent(content)
             .run();
+        } else {
+          editor.chain().focus().insertContent(content).run();
         }
       } else if (type === "insert") {
-        // Direct insertion at specified position or current cursor
         const pos =
           position ??
           /* fallback to current selection */ editor.state.selection.from;
@@ -225,14 +227,11 @@ export function SmartSidebar({
       // Use the SearchAndReplace commands to set terms and replace all matches
       editor
         .chain()
-        .focus() // Ensure editor is focused
-        .setSearchTerm(replace.original) // Set the text to find
-        .setReplaceTerm(replace.replacement) // Set the new text
-        .replaceAll() // Replace all instances
+        .focus()
+        .setSearchTerm(replace.original)
+        .setReplaceTerm(replace.replacement)
+        .replaceAll()
         .run();
-
-      // Optional: Scroll to the first replaced area or show a toast/notification
-      // e.g., editor.commands.selectNextResult(); // If you want to highlight/select the first one
 
       // Remove from replaces list after successful apply
       setCurrentReplaces((prev) =>
@@ -262,63 +261,46 @@ export function SmartSidebar({
     }
   };
 
+  const referencesList = references || [];
+
   return (
     <div className={cn("flex h-full flex-col bg-background", className)}>
+      {/* Header */}
       <div className="border-b border-border p-4 flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
           <Sparkles className="h-4 w-4 text-primary" />
           Smart Assistant
         </h2>
-        <div className="flex items-center gap-1">
-          {!isMobile && onClose && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={onClose}
-              aria-label="Collapse sidebar"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-          {isMobile && onClose && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 -mr-2"
-              onClick={onClose}
-              aria-label="Close sidebar"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
+        {/* Close buttons */}
+        {onClose && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={onClose}
+            aria-label="Close sidebar"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
-      <Tabs defaultValue="chat" className="flex flex-1 flex-col">
+      <Tabs defaultValue="chat" className="flex flex-1 flex-col overflow-hidden">
         <TabsList className="mx-4 mt-4 grid w-auto grid-cols-3 bg-muted/50 p-1 h-auto">
-          <TabsTrigger value="chat" className="text-xs py-1.5">
-            Chat
-          </TabsTrigger>
-          <TabsTrigger value="sources" className="text-xs py-1.5">
-            Sources
-          </TabsTrigger>
-          <TabsTrigger value="references" className="text-xs py-1.5">
-            Replace
-          </TabsTrigger>
+          <TabsTrigger value="chat" className="text-xs py-1.5">Chat</TabsTrigger>
+          <TabsTrigger value="sources" className="text-xs py-1.5">Sources</TabsTrigger>
+          <TabsTrigger value="references" className="text-xs py-1.5">Replace</TabsTrigger>
         </TabsList>
 
-        <TabsContent
-          value="chat"
-          className="flex flex-1 flex-col px-4 pb-4 mt-3"
-        >
-          <ScrollArea className="flex-1 pr-4" ref={scrollAreaRef}>
-            <div className="space-y-3 py-4">
+        {/* Chat Tab - Scrollable messages + sticky input */}
+        <TabsContent value="chat" className="flex-1 flex flex-col px-4 pb-4 mt-3 overflow-hidden">
+          <ScrollArea className="flex-1 pr-4 -mx-4 px-4">
+            <div className="space-y-3 py-4 min-h-full">
               {chatMessages.map((message, idx) => (
                 <div
                   key={idx}
                   className={cn(
-                    "rounded-lg p-3 text-xs leading-relaxed",
+                    "rounded-lg p-3 text-xs leading-relaxed max-w-[90%]",
                     message.role === "user"
                       ? "ml-6 bg-primary text-primary-foreground"
                       : "mr-2 bg-muted text-foreground"
@@ -330,11 +312,12 @@ export function SmartSidebar({
             </div>
           </ScrollArea>
 
-          <div className="flex gap-2 pt-3 mt-auto">
+          {/* Sticky Input at Bottom */}
+          <div className="flex gap-2 pt-3 shrink-0">
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendMessage()}
               placeholder="Ask anything..."
               className="flex-1 h-9 text-xs bg-background"
             />
@@ -344,49 +327,40 @@ export function SmartSidebar({
           </div>
         </TabsContent>
 
-        <TabsContent
-          value="sources"
-          className="flex-1 space-y-2 px-4 pb-4 mt-3"
-        >
+        {/* Sources Tab - Fully scrollable */}
+        <TabsContent value="sources" className="flex-1 px-4 pb-4 mt-3 overflow-hidden">
           <ScrollArea className="h-full pr-4">
             <div className="space-y-2 py-4">
-              <Card className="p-3 border-border/50 bg-muted/30">
-                <CardContent className="p-0 pt-3">
-                  <div className="flex items-start gap-3">
-                    <BookOpen className="mt-0.5 h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <div className="flex-1 space-y-0.5 min-w-0">
-                      <p className="text-xs font-medium truncate">
-                        Research Paper Title
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Author et al., 2024
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              {referencesList.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-8">
+                  No sources available yet.
+                </p>
+              ) : (
+                referencesList.map((ref, idx) => (
+                  <Card key={idx} className="p-3 border-border/50 shadow-none">
+                    <CardContent className="p-0 pt-3">
+                      <div className="flex items-start gap-3">
+                        <BookOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                        <div className="flex-1 space-y-0.5 min-w-0">
+                          <a
+                            href={ref.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-medium truncate hover:underline text-primary"
+                          >
+                            {ref.title}
+                          </a>
+                          <p className="text-xs text-muted-foreground">
+                            {ref.authors}, {ref.year}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
 
-              <Card className="p-3 border-border/50 bg-muted/30">
-                <CardContent className="p-0 pt-3">
-                  <div className="flex items-start gap-3">
-                    <BookOpen className="mt-0.5 h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <div className="flex-1 space-y-0.5 min-w-0">
-                      <p className="text-xs font-medium truncate">
-                        Study Reference
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Smith & Jones, 2023
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Button
-                variant="outline"
-                className="w-full bg-transparent mt-3 h-8 text-xs"
-                size="sm"
-              >
+              <Button variant="outline" className="w-full bg-transparent mt-3 h-8 text-xs" size="sm">
                 <BookOpen className="mr-1.5 h-3.5 w-3.5" />
                 Add Source
               </Button>
@@ -394,14 +368,12 @@ export function SmartSidebar({
           </ScrollArea>
         </TabsContent>
 
-        <TabsContent
-          value="references"
-          className="flex-1 space-y-2 px-4 pb-4 mt-3"
-        >
+        {/* Replace Tab - Fully scrollable */}
+        <TabsContent value="references" className="flex-1 px-4 pb-4 mt-3 overflow-hidden">
           <ScrollArea className="h-full pr-4">
             <div className="space-y-2 py-4">
               {currentReplaces.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-4">
+                <p className="text-xs text-muted-foreground text-center py-8">
                   No suggested replaces yet. Chat with AI to get ideas.
                 </p>
               ) : (
@@ -413,15 +385,14 @@ export function SmartSidebar({
                           <div className="flex items-center gap-2">
                             <Link2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                             <p className="text-xs font-medium truncate">
-                              Replace &rdquo;{replace.original}&rdquo;
+                              Replace "{replace.original}"
                             </p>
                           </div>
                           <p className="text-xs text-muted-foreground">
                             With: {replace.replacement}
                           </p>
                           <p className="text-xs text-muted-foreground/70">
-                            {replace.reason} (Confidence:{" "}
-                            {(replace.confidence * 100).toFixed(0)}%)
+                            {replace.reason} (Confidence: {(replace.confidence * 100).toFixed(0)}%)
                           </p>
                         </div>
                         <Button
@@ -438,11 +409,8 @@ export function SmartSidebar({
                   </Card>
                 ))
               )}
-              <Button
-                variant="outline"
-                className="w-full bg-transparent mt-3 h-8 text-xs"
-                size="sm"
-              >
+
+              <Button variant="outline" className="w-full bg-transparent mt-3 h-8 text-xs" size="sm">
                 <Link2 className="mr-1.5 h-3.5 w-3.5" />
                 Add Replace
               </Button>
@@ -459,7 +427,8 @@ export function SmartSidebar({
             <DialogDescription>
               {pendingAction?.type === "replace" ? (
                 <>
-                  Replace "{pendingAction.original}" with "{pendingAction.content}"?
+                  Replace "{pendingAction.original}" with "
+                  {pendingAction.content}"?
                   <br />
                   <span className="text-xs text-muted-foreground">
                     {pendingAction.reason}
@@ -467,7 +436,8 @@ export function SmartSidebar({
                 </>
               ) : (
                 <>
-                  Insert "{pendingAction?.content.substring(0, 50)}..." at position {pendingAction?.position ?? "cursor"}?
+                  Insert "{pendingAction?.content.substring(0, 50)}..." at
+                  position {pendingAction?.position ?? "cursor"}?
                   <br />
                   <span className="text-xs text-muted-foreground">
                     {pendingAction?.reason}

@@ -189,6 +189,7 @@ export function AskAIPopup({
       .setTextSelection(selectionRange)
       .deleteSelection()
       .insertContent(content)
+      .unsetSelectionHighlight()
       .run();
 
     setApplied(true);
@@ -200,12 +201,13 @@ export function AskAIPopup({
   };
 
   const popupStyle = position
-    ? {
-        position: "fixed" as const,
-        left: `${position.x}px`,
-        top: `${position.y}px`,
-        zIndex: 50,
-      }
+  ? {
+      position: "fixed" as const,
+      left: `${position.x}px`,
+      top: `${position.y}px`,
+      transform: 'translateX(-50%)',  // Add this to center horizontally
+      zIndex: 50,
+    }
     : {
         position: "fixed" as const,
         bottom: "24px",

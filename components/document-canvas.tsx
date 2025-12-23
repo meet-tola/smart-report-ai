@@ -41,19 +41,26 @@ export default function DocumentCanvas({
   fileType,
   fileData,
   documentId,
-  status = 'ready',
+  status = "ready",
 }: DocumentCanvasProps) {
   const [loading, setLoading] = useState(true);
   const [content, setContent] = useState<string>("");
+  const [references, setReferences] = useState<
+    Array<{ title: string; authors: string; year: string; url: string }>
+  >([]);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [showScanDialog, setShowScanDialog] = useState(false);
   const [scanData, setScanData] = useState<any>(null);
   const [suggestedReplaces, setSuggestedReplaces] = useState<any[]>([]);
-  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [autoSaveStatus, setAutoSaveStatus] = useState<
+    "idle" | "saving" | "saved"
+  >("idle");
   const [currentStatus, setCurrentStatus] = useState(status);
-  const [progressMessage, setProgressMessage] = useState("AI is crafting your document...");
+  const [progressMessage, setProgressMessage] = useState(
+    "AI is crafting your document..."
+  );
   const isMobile = useMediaQuery("(max-width: 768px)");
 
   const generatingMessages = [
@@ -61,7 +68,7 @@ export default function DocumentCanvas({
     "AI is writing the introduction...",
     "AI is building main sections...",
     "AI is adding conclusion and references...",
-    "AI is finalizing layout..."
+    "AI is finalizing layout...",
   ];
 
   // Debounce save function
@@ -75,9 +82,9 @@ export default function DocumentCanvas({
           setTimeout(() => setAutoSaveStatus("idle"), 2000);
         } catch (err) {
           console.error("Auto-save error:", err);
-          setAutoSaveStatus("idle"); 
+          setAutoSaveStatus("idle");
         }
-      }, 1000); 
+      }, 1000);
 
       return () => clearTimeout(timeoutId);
     },
@@ -99,7 +106,7 @@ export default function DocumentCanvas({
       });
     } catch (err) {
       console.error("Auto-save error:", err);
-      throw err; 
+      throw err;
     }
   };
 
@@ -159,10 +166,10 @@ export default function DocumentCanvas({
       setContent(html);
       // Initial save with status update
       setAutoSaveStatus("saving");
-      await saveContentToDB(html, 'ready');
+      await saveContentToDB(html, "ready");
       setAutoSaveStatus("saved");
       setTimeout(() => setAutoSaveStatus("idle"), 2000);
-      setCurrentStatus('ready');
+      setCurrentStatus("ready");
       setShowScanDialog(true);
     } catch (error) {
       console.error("Word render error:", error);
@@ -180,24 +187,27 @@ export default function DocumentCanvas({
         const res = await fetch(`/api/document/${documentId}`, {
           method: "GET",
           cache: "no-store",
-          headers: { // Add auth if needed
-          },
         });
         const { document } = await res.json();
         setCurrentStatus(document.status);
 
-        if (document.status === 'ready') {
+        if (document.status === "ready") {
           setContent(document.content || "");
+          setReferences(document.references || []);
           setLoading(false);
           clearInterval(interval);
           // Auto-save (though already saved server-side)
           setAutoSaveStatus("saved");
           setTimeout(() => setAutoSaveStatus("idle"), 2000);
           setShowScanDialog(true);
-        } else if (document.status === 'generating') {
+        } else if (document.status === "generating") {
           // Staged messages for "real-time progress"
-          setProgressMessage(generatingMessages[Math.floor(Math.random() * generatingMessages.length)]);
-        } else if (document.status === 'error') {
+          setProgressMessage(
+            generatingMessages[
+              Math.floor(Math.random() * generatingMessages.length)
+            ]
+          );
+        } else if (document.status === "error") {
           setContent("<p>Generation failed. Please try again.</p>");
           setLoading(false);
           clearInterval(interval);
@@ -206,8 +216,6 @@ export default function DocumentCanvas({
         console.error("Poll error:", err);
       }
     }, 2000);
-
-    // Cleanup after 5 min timeout or on unmount
     return () => clearInterval(interval);
   }, [documentId]);
 
@@ -222,20 +230,28 @@ export default function DocumentCanvas({
       const docStatus = document.status;
       setCurrentStatus(docStatus);
 
-      const trimmedContent = document.content ? document.content.trim() : '';
-      if (document.content && trimmedContent !== '' && trimmedContent !== '{}' && trimmedContent.length > 2) {
+      const trimmedContent = document.content ? document.content.trim() : "";
+      if (
+        document.content &&
+        trimmedContent !== "" &&
+        trimmedContent !== "{}" &&
+        trimmedContent.length > 2
+      ) {
         setContent(document.content);
+        setReferences(document.references || []);
         setLoading(false);
         setAutoSaveStatus("saved");
         setTimeout(() => setAutoSaveStatus("idle"), 2000);
         setShowScanDialog(true);
         return { handled: true, status: docStatus };
-      } else if (docStatus === 'error') {
+      } else if (docStatus === "error") {
         setContent("<p>Document generation failed. Please try again.</p>");
         setLoading(false);
         return { handled: true, status: docStatus };
-      } else if (docStatus === 'ready') {
-        setContent("<p>Document is ready but has no content. This may be an error. Please refresh the page.</p>");
+      } else if (docStatus === "ready") {
+        setContent(
+          "<p>Document is ready but has no content. This may be an error. Please refresh the page.</p>"
+        );
         setLoading(false);
         return { handled: true, status: docStatus };
       }
@@ -244,7 +260,7 @@ export default function DocumentCanvas({
       console.error("Initial fetch error:", err);
       setContent("<p>Failed to load document.</p>");
       setLoading(false);
-      return { handled: true, status: 'error' };
+      return { handled: true, status: "error" };
     }
   }, [documentId]);
 
@@ -254,14 +270,13 @@ export default function DocumentCanvas({
       // Always fetch initial state first
       const { handled, status: fetchedStatus } = await fetchInitialDocument();
       if (!handled) {
-        if (fetchedStatus === 'generating') {
+        if (fetchedStatus === "generating") {
           // Already generating, just poll
           pollStatus();
         } else if (fileData && fileType) {
           // Process uploaded file (e.g., Word/HTML)
           await handleFileData(fileData, fileType);
         } else {
-          // No fileData, trigger AI generation and poll
           try {
             await fetch(`/api/document/${documentId}/generate`, {
               method: "POST",
@@ -287,17 +302,20 @@ export default function DocumentCanvas({
     }
 
     try {
-      if (fileType.includes("wordprocessingml") || fileType.includes("msword")) {
+      if (
+        fileType.includes("wordprocessingml") ||
+        fileType.includes("msword")
+      ) {
         await renderWord(fileDataUrl);
       } else if (fileType.includes("html")) {
         // Direct HTML from upload, fetch the content
-        const htmlContent = await fetch(fileDataUrl).then(res => res.text());
+        const htmlContent = await fetch(fileDataUrl).then((res) => res.text());
         setContent(htmlContent);
         setAutoSaveStatus("saving");
-        await saveContentToDB(htmlContent, 'ready');
+        await saveContentToDB(htmlContent, "ready");
         setAutoSaveStatus("saved");
         setTimeout(() => setAutoSaveStatus("idle"), 2000);
-        setCurrentStatus('ready');
+        setCurrentStatus("ready");
         setShowScanDialog(true);
         setLoading(false);
       } else {
@@ -318,9 +336,9 @@ export default function DocumentCanvas({
       <div className="flex h-screen items-center justify-center bg-background">
         <AILoadingSkeleton
           messages={
-            currentStatus === 'generating'
+            currentStatus === "generating"
               ? generatingMessages
-              : ['Processing document...']
+              : ["Processing document..."]
           }
         />
       </div>
@@ -333,7 +351,9 @@ export default function DocumentCanvas({
         {/* Sticky Header with Toolbar */}
         <div className="sticky top-0 z-40 bg-background border-b border-border">
           <div className="mx-auto px-6 py-2">
-            {editor && <EditorToolbar editor={editor} autoSaveStatus={autoSaveStatus} />}
+            {editor && (
+              <EditorToolbar editor={editor} autoSaveStatus={autoSaveStatus} />
+            )}
           </div>
         </div>
         <div className="flex flex-1 overflow-hidden">
@@ -392,10 +412,10 @@ export default function DocumentCanvas({
               <div className="relative items-start hidden md:flex">
                 <div
                   className={`h-full overflow-hidden transition-all duration-300 ease-in-out ${
-                    sidebarOpen ? "w-[320px]" : "w-0"
+                    sidebarOpen ? "w-[380px]" : "w-0"
                   }`}
                 >
-                  <div className="w-[320px] h-full border-l border-border bg-background/50">
+                  <div className="w-[380px] h-full border-l border-border bg-background/50">
                     <SmartSidebar
                       className="h-full"
                       onClose={() => setSidebarOpen(false)}
@@ -404,6 +424,7 @@ export default function DocumentCanvas({
                       documentId={documentId}
                       suggestedReplaces={suggestedReplaces}
                       onReplacesUpdate={setSuggestedReplaces}
+                      references={references}
                     />
                   </div>
                 </div>
