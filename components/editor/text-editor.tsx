@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
@@ -38,24 +39,39 @@ import { ColorHighlightToolbar } from "@/components/editor/toolbars/color-and-hi
 import { SelectionHighlight } from "./extensions/selection-highlight";
 
 const FontFamily = Extension.create({
-  name: "fontFamily",
+  name: 'fontFamily',
+
   addGlobalAttributes() {
     return [
       {
-        types: ["textStyle"],
+        types: ['textStyle'],
         attributes: {
           fontFamily: {
             default: null,
-            parseHTML: (element) =>
-              element.style.fontFamily?.replace(/['"]/g, ""),
-            renderHTML: (attributes) => {
-              if (!attributes.fontFamily) return {};
-              return { style: `font-family: ${attributes.fontFamily}` };
+            parseHTML: element => element.style.fontFamily.replace(/['"]/g, '') || null,
+            renderHTML: attributes => {
+              if (!attributes.fontFamily) {
+                return {};
+              }
+              return {
+                style: `font-family: "${attributes.fontFamily}"`,
+              };
             },
           },
         },
       },
     ];
+  },
+
+  addCommands() {
+    return {
+      setFontFamily: (fontFamily: string) => ({ commands }) => {
+        return commands.setMark('textStyle', { fontFamily });
+      },
+      unsetFontFamily: () => ({ commands }) => {
+        return commands.unsetMark('textStyle', { fontFamily: null });
+      },
+    };
   },
 });
 
@@ -65,6 +81,7 @@ interface TextEditorEnhancedProps {
   initialFont?: string;
   onEditorReady?: (editor: any) => void;
   onContentChange?: (html: string) => void;
+  documentId: string;
 }
 
 const extensions = [
@@ -127,10 +144,15 @@ export function TextEditor({
   initialFont,
   onEditorReady,
   onContentChange,
+  documentId,
 }: TextEditorEnhancedProps) {
+  const lastSavedContent = useRef<string>("");
   const [showAskAI, setShowAskAI] = useState(false);
   const [savedSelectedText, setSavedSelectedText] = useState("");
-  const [selectionRange, setSelectionRange] = useState<{ from: number; to: number } | null>(null);
+  const [selectionRange, setSelectionRange] = useState<{
+    from: number;
+    to: number;
+  } | null>(null);
   const [buttonPosition, setButtonPosition] = useState({ x: 0, y: 0 });
   const floatingButtonRef = useRef<HTMLButtonElement>(null);
   const floatingContainerRef = useRef<HTMLDivElement>(null);
@@ -138,27 +160,114 @@ export function TextEditor({
   const lastScrollYRef = useRef<number>(0);
 
   const editor = useEditor({
-    immediatelyRender: false,
-    extensions: extensions as Extension[],
-    content: initialContent ? `${initialContent}` : "",
-    editorProps: {
-      attributes: {
-        class: "max-w-full focus:outline-none",
-        style: initialFont ? `font-family:'${initialFont}'` : "",
-      },
+  immediatelyRender: false,
+  extensions: extensions as Extension[],
+  content: initialContent || "",
+  editorProps: {
+    attributes: {
+      class: "max-w-full focus:outline-none prose max-w-none",
+      style: "font-family: 'Times New Roman', Times, serif;",
+      ...(initialFont && {
+        style: `font-family: '${initialFont}', 'Times New Roman', Times, serif;`,
+      }),
     },
-    onUpdate: ({ editor }) => {
-      if (onContentChange) {
-        onContentChange(editor.getHTML());
+  },
+  onCreate: ({ editor }) => {
+    if (onEditorReady) {
+      onEditorReady(editor);
+    }
+
+    const fontToApply = initialFont || "Times New Roman";
+
+    editor.commands.setFontFamily(fontToApply);
+
+    lastSavedContent.current = JSON.stringify(editor.getJSON());
+  },
+  onUpdate: ({ editor }) => {
+    if (onContentChange) {
+      onContentChange(editor.getHTML());
+    }
+  },
+});
+
+  const createVersion = useCallback(
+  async (name: string) => {
+    if (!editor || !documentId) return;
+
+    const jsonContent = editor.getJSON();
+    const contentStr = JSON.stringify(jsonContent);
+
+    if (contentStr === lastSavedContent.current) return;
+
+    try {
+      const res = await fetch(`/api/document/${documentId}/versions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, content: jsonContent }),
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Failed to save version: ${errorText}`);
       }
-      console.log(editor.getText());
-    },
-    onCreate: ({ editor }) => {
-      if (onEditorReady) {
-        onEditorReady(editor);
+      lastSavedContent.current = contentStr;
+    } catch (err) {
+      console.error("Version save error:", err);
+    }
+  },
+  [editor, documentId] 
+);
+
+  useEffect(() => {
+  if (!documentId) return;
+
+  const interval = setInterval(() => {
+    const date = new Date();
+    const name = `Auto Draft - ${date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })} ${date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    })}`;
+
+    createVersion(name);
+  }, 36000); 
+
+  return () => clearInterval(interval);
+}, [createVersion, documentId]); 
+
+  // Function to load versions (call in UI)
+  const loadVersions = useCallback(async () => {
+    const res = await fetch(`/api/document/${documentId}/versions`);
+    const { versions } = await res.json();
+    return versions;
+  }, [documentId]);
+
+  // Function to restore a version
+  const restoreVersion = useCallback(
+    async (versionId: string) => {
+      try {
+        const res = await fetch(`/api/document/${documentId}/versions`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ versionId }),
+        });
+        if (!res.ok) throw new Error("Restore failed");
+
+        const updatedDoc = await fetch(`/api/document/${documentId}`);
+        const { document } = await updatedDoc.json();
+        const jsonContent = JSON.parse(document.content);
+        editor?.commands.setContent(jsonContent);
+        lastSavedContent.current = document.content;
+
+      } catch (err) {
+        console.error("Restore error:", err);
       }
     },
-  });
+    [editor, documentId]
+  );
 
   const updateButtonPosition = useCallback(() => {
     if (!editor || !savedSelectedText) return;
@@ -174,13 +283,10 @@ export function TextEditor({
       const rect = range.getBoundingClientRect();
 
       if (rect.width > 0 && rect.height > 0) {
-        // Position centered above the selection like a tooltip
         const toolbarHeight = 40;
         const marginAbove = 20;
 
-        // Ensure position is within viewport
         const viewportWidth = window.innerWidth;
-        // const viewportHeight = window.innerHeight;
 
         let x = rect.left + rect.width / 2;
         let y = rect.top - toolbarHeight - marginAbove;
@@ -230,7 +336,6 @@ export function TextEditor({
   // Handle wheel events (for trackpads and mouse wheels)
   const handleWheel = useCallback(
     (e: WheelEvent) => {
-      // Only hide if there's actual vertical scroll
       if (Math.abs(e.deltaY) > 1) {
         hideUIOnScroll();
       }
@@ -238,7 +343,6 @@ export function TextEditor({
     [hideUIOnScroll]
   );
 
-  // Handle touch events for mobile/trackpad
   const handleTouchStart = useCallback(() => {
     lastScrollYRef.current = window.scrollY;
   }, []);
@@ -260,7 +364,6 @@ export function TextEditor({
 
       if (text.trim().length > 0) {
         setSavedSelectedText(text);
-        // Delay slightly to ensure DOM update
         requestAnimationFrame(() => {
           updateButtonPosition();
         });
@@ -283,7 +386,6 @@ export function TextEditor({
       }
     };
 
-    // Add multiple event listeners for different scroll/touch scenarios
     window.addEventListener("mouseup", handleWindowMouseUp);
     window.addEventListener("scroll", hideUIOnScroll, { passive: true });
     window.addEventListener("wheel", handleWheel, { passive: true });
@@ -314,66 +416,62 @@ export function TextEditor({
   ]);
 
   const handleAskAIClick = (e: React.MouseEvent) => {
-  e.preventDefault();
-  e.stopPropagation();
+    e.preventDefault();
+    e.stopPropagation();
 
-  if (!editor) return;
+    if (!editor) return;
 
-  const { from, to } = editor.state.selection;
-  const text = editor.state.doc.textBetween(from, to, " ");
+    const { from, to } = editor.state.selection;
+    const text = editor.state.doc.textBetween(from, to, " ");
 
-  if (text.trim().length === 0) return;
+    if (text.trim().length === 0) return;
 
-  setSavedSelectedText(text);
-  setSelectionRange({ from, to }); 
+    setSavedSelectedText(text);
+    setSelectionRange({ from, to });
 
-  // Apply fake highlight on the exact range
-  editor
-    .chain()
-    .setTextSelection({ from, to })
-    .setSelectionHighlight()
-    .run();
+    // Apply fake highlight on the exact range
+    editor.chain().setTextSelection({ from, to }).setSelectionHighlight().run();
 
-  // Hide floating toolbar
-  setSavedSelectedText("");
+    // Hide floating toolbar
+    setSavedSelectedText("");
 
-  // Position popup below selection
-  const selection = window.getSelection();
-  if (selection?.rangeCount) {
-    const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
+    // Position popup below selection
+    const selection = window.getSelection();
+    if (selection?.rangeCount) {
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
 
-    if (rect.width > 0 && rect.height > 0) {
-      const marginBelow = 10;
-      let x = rect.left + rect.width / 2;
-      const y = rect.bottom + marginBelow;
+      if (rect.width > 0 && rect.height > 0) {
+        const marginBelow = 10;
+        let x = rect.left + rect.width / 2;
+        const y = rect.bottom + marginBelow;
 
-      const viewportWidth = window.innerWidth;
-      if (x < 100) x = 100;
-      if (x > viewportWidth - 100) x = viewportWidth - 100;
+        const viewportWidth = window.innerWidth;
+        if (x < 100) x = 100;
+        if (x > viewportWidth - 100) x = viewportWidth - 100;
 
-      setButtonPosition({ x, y });
+        setButtonPosition({ x, y });
+      }
     }
-  }
 
-  setShowAskAI(true);
-};
+    setShowAskAI(true);
+  };
 
   const handleClosePopup = () => {
-  setShowAskAI(false);
-  setSavedSelectedText("");
-  setSelectionRange(null); // clear it
+    setShowAskAI(false);
+    setSavedSelectedText("");
+    setSelectionRange(null); // clear it
 
-  if (editor && selectionRange) {
-    editor
-      .chain()
-      .setTextSelection(selectionRange)
-      .unsetSelectionHighlight()
-      .run();
-  }
+    if (editor && selectionRange) {
+      editor
+        .chain()
+        .setTextSelection(selectionRange)
+        .unsetSelectionHighlight()
+        .run();
+    }
 
-  window.getSelection()?.removeAllRanges();
-};
+    window.getSelection()?.removeAllRanges();
+  };
 
   // Clear selection when clicking outside
   useEffect(() => {

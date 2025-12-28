@@ -10,12 +10,15 @@ export async function GET() {
     if (!supabaseUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    
+
     const prismaUser = await prisma.user.findUnique({
       where: {
-        authId: supabaseUser.id,  
+        authId: supabaseUser.id,
       },
     });
+    if (!prismaUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
 
     const documents = await prisma.document.findMany({
       where: {

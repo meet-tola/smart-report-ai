@@ -149,12 +149,11 @@
 .ProseMirror h2,
 .ProseMirror h3,
 .ProseMirror h4 {
-  font-family: var(--editor-font-sans);
   font-weight: 700;
-  letter-spacing: -0.025em;
+  /* letter-spacing: -0.025em; */
   color: var(--editor-text-default);
   scroll-margin-top: var(--editor-spacing-16);
-  line-height: 1.2;
+  line-height: 1.15;
 }
 
 .ProseMirror h1 {

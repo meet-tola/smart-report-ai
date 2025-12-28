@@ -1,8 +1,11 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY!,
+});
 
 interface ScanRequestBody {
   content: string;
@@ -18,7 +21,7 @@ interface ScanResponse {
   };
   placeholders: Array<{
     type: 'name' | 'project' | 'title' | 'school';
-    position: number; // Approximate character index in content
+    position: number; 
     currentValue?: string;
     suggestion?: string;
   }>;
@@ -35,8 +38,7 @@ export async function POST(request: NextRequest) {
   try {
     const { content, documentId } = await request.json() as ScanRequestBody;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
-
+    // Build detailed prompt (similar style to your second code)
     const prompt = `
 You are a smart document assistant for school projects, reports, and academic documents.
 Scan the following HTML document content for placeholders or existing values related to:
@@ -45,7 +47,7 @@ Scan the following HTML document content for placeholders or existing values rel
 - Title (e.g., document title, "[Title]")
 - School/Institution (e.g., "[School]", "University of Example")
 
-IMPORTANT: Respond with ONLY the raw JSON object. Do NOT include markdown code blocks like \`\`\`json or any other formatting. Start directly with { and end with }.
+Respond with ONLY the raw JSON object. Do NOT include markdown code blocks, explanations, or any other text. Start directly with { and end with }.
 
 Output in this exact structure:
 {
@@ -78,33 +80,53 @@ Document content:
 ${content}
 `;
 
-    const result = await model.generateContent(prompt);
-    let responseText = await result.response.text();
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a precise document scanner that always outputs valid JSON exactly as instructed, without any extra text or formatting.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      temperature: 0.5,
+      max_tokens: 4096,
+      top_p: 0.95,
+      stream: false,
+      response_format: { type: "json_object" }, // Enforces JSON output mode
+    });
 
-    // Clean up any markdown code fences (e.g., ```json ... ```)
-    responseText = responseText
-      .replace(/```(?:json)?\s*?\n?/g, '') // Remove opening fence
-      .replace(/\s*?```\s*$/g, '') // Remove closing fence
-      .trim();
+    const rawContent = completion.choices[0]?.message?.content?.trim() || "{}";
 
-    // Parse the JSON response
-    let scanResult: ScanResponse;
+    // Robust parsing (mirroring your second code's error handling)
+    let parsedContent: ScanResponse;
     try {
-      scanResult = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('JSON parse error:', parseError, 'Raw response:', responseText);
-      return NextResponse.json({ error: 'Invalid AI response format' }, { status: 500 });
+      parsedContent = JSON.parse(rawContent);
+      console.log("Parsed JSON successfully");
+    } catch (e) {
+      const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          parsedContent = JSON.parse(jsonMatch[0]);
+          console.warn("Extracted JSON from wrapped output");
+        } catch (e2) {
+          throw new Error("Invalid JSON from AI even after extraction");
+        }
+      } else {
+        throw new Error("No JSON found in AI response");
+      }
     }
 
-    // Optionally save scan results to DB for the document
-    // await fetch('/api/document/update-scan', {
-    //   method: 'POST',
-    //   body: JSON.stringify({ documentId, scan: scanResult }),
-    // });
-
-    return NextResponse.json(scanResult);
-  } catch (error) {
-    console.error('Scan error:', error);
-    return NextResponse.json({ error: 'Failed to scan document' }, { status: 500 });
+    return NextResponse.json(parsedContent);
+  } catch (error: any) {
+    console.error("Scan error:", error);
+    return NextResponse.json(
+      { error: "Failed to scan document", details: error.message || "Unknown error" },
+      { status: 500 }
+    );
   }
 }

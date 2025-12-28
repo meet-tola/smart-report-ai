@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
-import { useState, useRef, useEffect, useReducer } from "react";
+import { useState, useRef, useReducer } from "react";
 import { Separator } from "@/components/ui/separator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ToolbarProvider } from "./toolbar-provider";
@@ -39,10 +40,10 @@ import {
   Link,
   FileJson,
   FileText,
-  CheckCircle,
   Circle,
   Heading,
   Sparkles,
+  Loader2,
 } from "lucide-react";
 import { LineHeightToolbar } from "./line-height";
 import { BlockFormatToolbar } from "./block-format-toolbar";
@@ -52,41 +53,124 @@ import { AskAIPopup } from "../ask-ai-popup";
 interface EditorToolbarProps {
   editor: Editor;
   autoSaveStatus: "idle" | "saving" | "saved";
+  documentId: string; // Add this prop!
+}
+
+interface Version {
+  id: string;
+  name: string;
+  version: number;
+  createdAt: string;
 }
 
 export const EditorToolbar = ({
   editor,
   autoSaveStatus,
+  documentId,
 }: EditorToolbarProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showAskAI, setShowAskAI] = useState(false);
   const [savedSelectedText, setSavedSelectedText] = useState("");
   const [selectionRange, setSelectionRange] = useState({ from: 0, to: 0 });
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
-  const aiButtonRef = useRef<HTMLButtonElement>(null);
+  const aiButtonRef = useRef<HTMLButtonButton>(null);
   const [, forceUpdate] = useReducer((x) => x + 1, 0);
 
-  useEffect(() => {
-    if (!editor) return;
+  // Version History State
+  const [versions, setVersions] = useState<Version[]>([]);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+  const [restoringVersionId, setRestoringVersionId] = useState<string | null>(
+    null
+  );
+  const [versionMenuOpen, setVersionMenuOpen] = useState(false);
 
-    const handleSelectionUpdate = () => forceUpdate();
-    editor.on("selectionUpdate", handleSelectionUpdate);
+  // Fetch versions when menu opens
+  const fetchVersions = async () => {
+    if (versions.length > 0) return;
 
-    return () => {
-      editor.off("selectionUpdate", handleSelectionUpdate);
-    };
-  }, [editor]);
+    setLoadingVersions(true);
+    try {
+      const res = await fetch(`/api/document/${documentId}/versions`);
+      if (res.ok) {
+        const { versions: fetched } = await res.json();
+        setVersions(fetched);
+      }
+    } catch (err) {
+      console.error("Failed to load versions:", err);
+    } finally {
+      setLoadingVersions(false);
+    }
+  };
+
+  // Restore a version
+  const restoreVersion = async (versionId: string) => {
+    setRestoringVersionId(versionId);
+    try {
+      const res = await fetch(`/api/document/${documentId}/versions`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ versionId }),
+      });
+
+      if (res.ok) {
+        // Reload the page or trigger editor update
+        window.location.reload(); // Simple way – or emit event if you prefer
+      } else {
+        alert("Failed to restore version");
+      }
+    } catch (err) {
+      console.error("Restore failed:", err);
+      alert("Failed to restore version");
+    } finally {
+      setRestoringVersionId(null);
+    }
+  };
+
+  // Format date nicely
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+
+    if (isToday) {
+      return `Today at ${date.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })}`;
+    }
+
+    const isYesterday =
+      date.toDateString() ===
+      new Date(now.setDate(now.getDate() - 1)).toDateString();
+    if (isYesterday) {
+      return `Yesterday at ${date.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })}`;
+    }
+
+    return (
+      date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }) +
+      ` at ${date.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })}`
+    );
+  };
 
   const handleAIAsk = () => {
+    // ... your existing AI logic
     if (!editor) return;
-
     const { from, to } = editor.state.selection;
     const text = editor.state.doc.textBetween(from, to, " ");
-
-    if (!text.trim()) {
-      // Optional: Show a toast or alert "Please select text first"
-      return;
-    }
+    if (!text.trim()) return;
 
     setSavedSelectedText(text);
     setSelectionRange({ from, to });
@@ -98,7 +182,6 @@ export const EditorToolbar = ({
         y: rect.bottom + window.scrollY + 10,
       });
     }
-
     setShowAskAI(true);
   };
 
@@ -313,55 +396,74 @@ export const EditorToolbar = ({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 gap-1.5 px-2"
-                  title="Version history"
+              {/* Version History Dropdown */}
+              <DropdownMenu
+                open={versionMenuOpen}
+                onOpenChange={(open) => {
+                  setVersionMenuOpen(open);
+                  if (open) fetchVersions();
+                }}
+              >
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 gap-1.5 px-2"
+                    title="Version history"
+                  >
+                    <Clock className="h-4 w-4" />
+                    <span className="hidden sm:inline text-sm">History</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-72 max-h-96 overflow-y-auto"
                 >
-                  <Clock className="h-4 w-4" />
-                  <span className="hidden sm:inline md:hidden lg:hidden text-sm">
-                    History
-                  </span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel className="text-xs">
-                  Version History
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="flex items-start gap-3 cursor-pointer py-2">
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">Current Version</div>
-                    <div className="text-xs text-muted-foreground">
-                      Today at 2:45 PM
+                  <DropdownMenuLabel className="text-xs flex items-center justify-between">
+                    Version History
+                    {loadingVersions && (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    )}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+
+                  {loadingVersions ? (
+                    <div className="py-6 text-center text-sm text-muted-foreground">
+                      Loading versions...
                     </div>
-                  </div>
-                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="flex items-start gap-3 cursor-pointer py-2">
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">Draft saved</div>
-                    <div className="text-xs text-muted-foreground">
-                      Today at 1:20 PM
+                  ) : versions.length === 0 ? (
+                    <div className="py-6 text-center text-sm text-muted-foreground">
+                      No saved versions yet
                     </div>
-                  </div>
-                  <Circle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                </DropdownMenuItem>
-                <DropdownMenuItem className="flex items-start gap-3 cursor-pointer py-2">
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">Major revision</div>
-                    <div className="text-xs text-muted-foreground">
-                      Yesterday at 5:00 PM
-                    </div>
-                  </div>
-                  <Circle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  ) : (
+                    versions.map((version) => (
+                      <DropdownMenuItem
+                        key={version.id}
+                        className="flex items-start gap-3 py-3 cursor-pointer focus:bg-accent"
+                        onClick={() => restoreVersion(version.id)}
+                        disabled={!!restoringVersionId}
+                      >
+                        <div className="flex-1">
+                          <div className="text-sm font-medium flex items-center gap-2">
+                            {version.name}
+                            {restoringVersionId === version.id && (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatDate(version.createdAt)}
+                          </div>
+                        </div>
+                        {/* You could show a check if this is the current version */}
+                        {/* Or compare with main document's latest version field */}
+                        <Circle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                      </DropdownMenuItem>
+                    ))
+                  )}
+
+                  {versions.length > 0 && <DropdownMenuSeparator />}
+                </DropdownMenuContent>
+              </DropdownMenu>
           </div>
         </TooltipProvider>
       </ToolbarProvider>

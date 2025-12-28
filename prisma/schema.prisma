@@ -136,12 +136,14 @@ model DocumentVersion {
   documentId String
   document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
-  content String
-  version Int
+  name       String
+  content    String
+  version    Int
 
-  createdAt DateTime @default(now())
+  createdAt  DateTime @default(now())
 
-  @@index([documentId])
+  @@index([documentId, createdAt])
+  @@unique([documentId, version]) // Ensures no duplicate version numbers
   @@map("document_versions")
 }
 

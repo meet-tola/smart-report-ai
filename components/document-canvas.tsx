@@ -352,7 +352,11 @@ export default function DocumentCanvas({
         <div className="sticky top-0 z-40 bg-background border-b border-border">
           <div className="mx-auto px-6 py-2">
             {editor && (
-              <EditorToolbar editor={editor} autoSaveStatus={autoSaveStatus} />
+              <EditorToolbar
+                editor={editor}
+                autoSaveStatus={autoSaveStatus}
+                documentId={documentId}
+              />
             )}
           </div>
         </div>
@@ -366,6 +370,7 @@ export default function DocumentCanvas({
                   className="min-h-full"
                   onEditorReady={setEditor}
                   onContentChange={handleContentChange}
+                  documentId={documentId}
                 />
               </div>
             </div>
